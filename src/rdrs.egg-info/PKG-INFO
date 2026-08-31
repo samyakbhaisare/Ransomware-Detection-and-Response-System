@@ -1,0 +1,7 @@
+Metadata-Version: 2.4
+Name: rdrs
+Version: 0.1.0
+Summary: RDRS CLI Runtime
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+Requires-Dist: PyYAML>=6.0

@@ -1,0 +1,24 @@
+runtime:
+  name: rdrs
+  environment: development
+  data_dir: data
+  logs_dir: logs
+  shutdown_timeout: 10
+
+logging:
+  level: INFO
+
+persistence:
+  enabled: true
+  db_path: data/rdrs.db
+
+subsystems:
+  - name: config
+    healthy: true
+    critical: true
+  - name: logging
+    healthy: true
+    critical: true
+  - name: database
+    healthy: true
+    critical: true
