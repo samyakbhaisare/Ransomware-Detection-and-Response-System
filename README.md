@@ -92,13 +92,99 @@ Five size-rotated logs are written under the configured `logs_dir`
 
 ## Docker
 
+One-command startup:
+
 ```bash
 docker compose up --build
 ```
 
-The image exposes port `8000`, declares a `/health` healthcheck, and mounts
-`./data`, `./logs` and `./config` from the host so no runtime state is baked
-into the image.
+Then open <http://127.0.0.1:8000>.
+
+Useful commands:
+
+```bash
+docker compose up --build -d          # start detached
+docker compose ps                     # container + health status
+docker compose logs -f rdrs           # follow the application log
+docker compose down                   # stop and remove the container
+docker compose up --build --force-recreate   # rebuild from scratch
+```
+
+### Image
+
+| Property | Value |
+| --- | --- |
+| Base | `python:3.13-slim` — satisfies `requires-python >= 3.11` and the Guide's 3.12+ |
+| Working directory | `/app` |
+| User | `rdrs` (uid 1001, system account) — **not root** |
+| Port | `8000` |
+| Entrypoint | `uvicorn rdrs.api:app --host 0.0.0.0 --port 8000` |
+| Healthcheck | calls `http://127.0.0.1:8000/health` and fails on a non-2xx response |
+| Build context | filtered by `.dockerignore` — no `.venv`, `.git`, databases, logs, caches, secrets or reports |
+
+Writable paths inside the image are `/app/data` and `/app/logs`, both owned by
+`rdrs` and both backed by host bind mounts. Nothing else in the container
+filesystem changes at runtime.
+
+### Volumes
+
+| Host | Container | Holds |
+| --- | --- | --- |
+| `./data` | `/app/data` | SQLite database, `sandbox/`, `reports/`, `quarantine/` |
+| `./logs` | `/app/logs` | rotating `system` / `events` / `alerts` / `errors` / `audit` logs |
+| `./config.yaml` | `/app/config.yaml` | the canonical configuration (FSD FR-1) |
+
+`config.yaml` is mounted **read-write on purpose**: `POST /settings` persists
+changes back to that file so they survive a restart, and a read-only mount would
+make every settings save fail.
+
+Because `runtime.watch_paths` is `['data']`, the container monitors `/app/data`,
+which is the project's own sandbox area — not a sensitive host directory.
+
+### Persistence
+
+Behaviour is identical to a local run:
+
+* **Enabled** — the SQLite database at `data/rdrs.db` lives on the host through
+  the `./data` mount, so history survives `docker compose down` and a rebuild.
+* **Disabled** — the runtime uses an in-memory database; the mounted
+  `data/rdrs.db` is left untouched and becomes visible again when persistence is
+  re-enabled.
+
+### Docker verification status
+
+**NOT VERIFIED — the image has not been built and no container has been run.**
+
+The Dockerfile and compose file are statically validated (46 checks in
+`tests/unit/test_docker_configuration.py`), and `docker compose config` renders
+cleanly, but that is **configuration** validation only and is not evidence that
+the container starts.
+
+The blocker is environmental, in two independent parts:
+
+1. The Docker daemon is not running. Docker Desktop's backend crashes at
+   startup with `unable to get 'ProgramData'` (from
+   `%LOCALAPPDATA%\Docker\log\host\monitor.log`), and no Docker process survives
+   a launch attempt.
+2. `wsl.exe` — the backend Docker Desktop requires on Windows — is blocked by
+   this machine's security policy, which states the block cannot be approved or
+   bypassed and must not be retried.
+
+No workaround was attempted. **Phase 10 and the deployment half of FR-13 remain
+unverified.**
+
+To complete the verification on a Docker-enabled machine:
+
+```bash
+docker compose up --build -d
+docker compose ps                       # expect "healthy"
+curl -s http://127.0.0.1:8000/health
+curl -s http://127.0.0.1:8000/status
+# run the section-15 sandbox script against data/sandbox, then:
+curl -s -X POST "http://127.0.0.1:8000/reports/generate?incident_id=1&format=json"
+docker compose down && docker compose up -d
+# confirm the incident and event counts are still present after the restart
+```
 
 ## Testing
 
@@ -268,14 +354,16 @@ is the intended behaviour, but is worth knowing before it looks like data loss.
 
 ## Known limitations
 
-* **Docker deployment is not verified.** `Dockerfile` and `docker-compose.yml`
-  are present and well-formed, but the image has never been built or run in this
-  environment, so Phase 10 and the deployment half of FR-13 remain unverified.
+* **Docker deployment is not verified.** The Dockerfile and compose file are
+  statically validated and `docker compose config` renders cleanly, but the image
+  has never been built and no container has been run, so Phase 10 and the
+  deployment half of FR-13 remain unverified. The blocker is environmental: the
+  Docker daemon is not running (Docker Desktop's backend crashes with
+  `unable to get 'ProgramData'`) and `wsl.exe`, which it requires on Windows, is
+  blocked by this machine's security policy. See the Docker section above.
 * **Filesystem monitoring inside a container is untested.** watchdog relies on
   native filesystem notifications; behaviour on a bind-mounted volume (Docker
   Desktop on Windows in particular) may differ from the host.
-* **The Dockerfile pins `python:3.13-slim`** while development runs on 3.14.3 —
-  an untested combination.
 * **No authentication.** The API trusts the local machine and guards mutating
   endpoints with a local-origin check. It is not intended to be exposed to a
   network.

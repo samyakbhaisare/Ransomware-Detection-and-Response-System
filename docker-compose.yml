@@ -1,27 +1,68 @@
+# RDRS — defensive ransomware detection and response system.
+#
+# One-command startup:
+#     docker compose up --build
+#
+# The stack is a single service. Runtime state lives on the host through bind
+# mounts so the database, logs, configuration and generated reports survive a
+# container restart or replacement; the image itself stays free of environment
+# data.
+
 services:
   rdrs:
     build:
       context: .
       dockerfile: Dockerfile
+    image: rdrs:local
     container_name: rdrs
+
+    # Runs a tiny init as PID 1 so SIGTERM reaches uvicorn and the container
+    # shuts down cleanly instead of being killed after the grace period.
+    init: true
+
     ports:
       - "8000:8000"
+
     volumes:
-      # Runtime state lives on the host, never in the image.
+      # Runtime state. The canonical configuration watches this directory
+      # (runtime.watch_paths: ['data']), and it is the project's own sandbox
+      # area — not a sensitive host directory.
+      #
+      #   data/rdrs.db           SQLite database (when persistence is Enabled)
+      #   data/sandbox/          the Build Guide section-15 test area
+      #   data/reports/          generated JSON/CSV reports
+      #   data/quarantine/       copy-only evidence
       - ./data:/app/data
+
+      # Rotating operational logs (system/events/alerts/errors/audit).
       - ./logs:/app/logs
-      # The canonical configuration (FSD FR-1). Mounted read-write because
+
+      # The canonical configuration (FSD FR-1). Mounted read-write on purpose:
       # POST /settings persists changes back to this file so they survive a
-      # restart; a read-only mount would make every settings save fail.
+      # restart, and a read-only mount would make every settings save fail.
       - ./config.yaml:/app/config.yaml
+
+    environment:
+      # No secrets are required by RDRS. These only make the container's
+      # behaviour explicit and match the Dockerfile defaults.
+      PYTHONUNBUFFERED: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+
+    # Calls the application's real /health endpoint; a non-2xx response fails
+    # the check. No hardcoded health state is reported.
     healthcheck:
       test:
         - CMD
         - python
         - -c
-        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3).read()"
+        - "import sys, urllib.request; r = urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3); sys.exit(0 if r.status == 200 else 1)"
       interval: 30s
       timeout: 5s
-      start_period: 15s
+      start_period: 20s
       retries: 3
+
     restart: unless-stopped
+
+    # The application writes only under /app/data and /app/logs, which are the
+    # mounted volumes above. Nothing else in the container filesystem is
+    # expected to change at runtime.

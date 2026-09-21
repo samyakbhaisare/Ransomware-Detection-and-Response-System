@@ -1,5 +1,5 @@
 # Build context exclusions for the RDRS image.
-# Keeps the image free of local environment state, caches and evidence bundles.
+# Keeps the image free of local environment state, secrets, caches and evidence.
 
 # Virtual environments
 .venv/
@@ -9,6 +9,18 @@ env/
 # Version control
 .git/
 .gitignore
+
+# Secrets and local environment overrides — never bake these into an image
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+credentials*
+secrets*
 
 # Python caches / build artefacts
 __pycache__/
@@ -26,12 +38,28 @@ htmlcov/
 .coverage.*
 coverage.json
 *_coverage.json
+cov_raw.json
 audit_pytest_run.txt
+AUDIT_SUMMARY.txt
+*_AUDIT_*.txt
+*_AUDIT_*.json
+FINAL_TEST_RESULT.txt
+RDRS_FULL_SOURCE_AUDIT.zip
+*.broken-backup
 
-# Runtime state - mounted as volumes instead of baked in
+# Runtime state — mounted as volumes instead of baked in
 data/
 logs/
 e2e_out/
+*.db
+*.db-wal
+*.db-shm
+*.log
+
+# Local configuration backups (the canonical config.yaml is copied in)
+config.yaml.bak-*
+config.yaml.damaged-*
+config.yaml.pre-*
 
 # Local probes / scratch
 ptmp/
@@ -45,6 +73,9 @@ tmp/
 .DS_Store
 Thumbs.db
 
-# Project docs that are not needed at runtime
+# Not needed at runtime
 reports/
 docs/
+tests/
+scripts/
+.workbuddy-ai/
