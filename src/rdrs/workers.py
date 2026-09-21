@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from queue import Full, Queue
 from threading import Thread
@@ -52,3 +52,4 @@ class WorkerPool:
                     results.append(task)
             finally:
                 self.queue.task_done()
+

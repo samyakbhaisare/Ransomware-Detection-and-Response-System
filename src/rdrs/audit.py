@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -33,3 +33,4 @@ class AuditEngine:
         entry = AuditEntry(actor=actor, action=action, result=result, success=success, details=details or {})
         self.entries.append(entry)
         return entry.to_dict()
+

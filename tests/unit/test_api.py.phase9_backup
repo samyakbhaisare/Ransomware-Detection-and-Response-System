@@ -1,0 +1,98 @@
+from fastapi.testclient import TestClient
+
+from rdrs.api import app
+
+
+client = TestClient(app)
+
+
+def test_health_endpoint():
+    response = client.get("/health")
+
+    assert response.status_code == 200
+
+    data = response.json()
+    assert "state" in data
+    assert "healthy" in data
+    assert "subsystems" in data
+    assert "degraded" in data
+
+
+def test_status_endpoint():
+    response = client.get("/status")
+
+    assert response.status_code == 200
+
+    data = response.json()
+    assert "state" in data
+    assert "healthy" in data
+    assert "started_at" in data
+    assert "subsystems" in data
+    assert "config" in data
+
+
+def test_alerts_endpoint():
+    response = client.get("/alerts")
+
+    assert response.status_code == 200
+    assert isinstance(response.json(), list)
+
+
+def test_events_endpoint():
+    response = client.get("/events")
+
+    assert response.status_code == 200
+    assert isinstance(response.json(), list)
+
+
+def test_alerts_limit_validation():
+    response = client.get("/alerts?limit=0")
+
+    assert response.status_code == 422
+
+
+def test_events_limit_validation():
+    response = client.get("/events?limit=0")
+
+    assert response.status_code == 422
+
+
+def test_scan_endpoint(tmp_path):
+    sample = tmp_path / "sample.txt"
+    sample.write_text("RDRS scan test", encoding="utf-8")
+
+    response = client.post("/scan", params={"path": str(tmp_path)})
+
+    assert response.status_code == 200
+
+    data = response.json()
+    assert data["path"] == str(tmp_path)
+    assert data["count"] == 1
+    assert str(sample) in data["files"]
+
+def test_reports_endpoint():
+    response = client.get("/reports")
+
+    assert response.status_code == 200
+
+    data = response.json()
+    assert "count" in data
+    assert "incidents" in data
+    assert data["count"] == len(data["incidents"])
+
+
+def test_settings_endpoint():
+    response = client.post(
+        "/settings",
+        json={
+            "environment": "test",
+            "shutdown_timeout": 15,
+        },
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+    assert data["environment"] == "test"
+    assert data["shutdown_timeout"] == 15.0
+    assert data["name"] == "rdrs"

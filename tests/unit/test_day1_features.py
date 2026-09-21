@@ -21,8 +21,13 @@ from rdrs.telemetry import (
 
 def test_structured_logging_emits_json(tmp_path):
     logger = StructuredLogger("rdrs.test", log_path=tmp_path / "audit.log")
-    logger.info("feature.test", extra={"feature": "F06", "state": "ready"})
-    log_contents = (tmp_path / "audit.log").read_text(encoding="utf-8")
+
+    try:
+        logger.info("feature.test", extra={"feature": "F06", "state": "ready"})
+        log_contents = (tmp_path / "audit.log").read_text(encoding="utf-8")
+    finally:
+        logger.close()
+
     payload = json.loads(log_contents.strip().splitlines()[-1])
     assert payload["logger"] == "rdrs.test"
     assert payload["feature"] == "F06"

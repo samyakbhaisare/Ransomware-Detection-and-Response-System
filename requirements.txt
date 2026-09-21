@@ -1,0 +1,29 @@
+# RDRS Complete Project Dependencies
+# FSD FR-01 -> FR-13
+# Build Guide Phase 1 -> Phase 10
+#
+# Every entry below is imported by the shipped source or test suite.
+# Declared-but-unused packages (loguru, reportlab, jinja2) were removed so the
+# manifest matches the real import graph; reports are emitted as JSON + CSV per
+# FSD FR-12 and the Build Guide Phase 8.
+
+# Runtime / Core
+watchdog
+psutil
+pydantic
+PyYAML
+
+# Database
+SQLAlchemy
+
+# REST API
+fastapi
+uvicorn
+
+# Testing
+pytest
+pytest-cov
+# starlette.testclient imports `httpx2 as httpx` and only falls back to the
+# plain `httpx` distribution. Declaring httpx2 is therefore the correct and
+# preferred choice for this Starlette version.
+httpx2

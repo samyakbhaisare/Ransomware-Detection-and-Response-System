@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -79,3 +79,4 @@ class EventBus:
 
     def __len__(self) -> int:
         return len(self._published)
+

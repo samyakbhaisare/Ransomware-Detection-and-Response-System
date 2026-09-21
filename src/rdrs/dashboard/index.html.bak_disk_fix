@@ -1,0 +1,2660 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+    <title>RDRS Security Operations</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        :root {
+            --bg: #080c11;
+            --panel: #10161e;
+            --panel-2: #151d27;
+            --border: #27313d;
+            --text: #e6edf3;
+            --muted: #8b98a8;
+            --muted-2: #687584;
+            --green: #7ee787;
+            --yellow: #d29922;
+            --red: #ff7b72;
+            --blue: #79c0ff;
+        }
+
+        body {
+            font-family:
+                Arial,
+                Helvetica,
+                sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+        }
+
+        button,
+        input,
+        select {
+            font: inherit;
+        }
+
+        button {
+            border: 1px solid #34404d;
+            background: var(--panel-2);
+            color: var(--text);
+            padding: 9px 14px;
+            border-radius: 7px;
+            cursor: pointer;
+        }
+
+        button:hover:not(:disabled) {
+            background: #202b38;
+        }
+
+        button:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+        }
+
+        input,
+        select {
+            width: 100%;
+            background: #0b1118;
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 10px 12px;
+            border-radius: 7px;
+            outline: none;
+        }
+
+        input:focus,
+        select:focus {
+            border-color: var(--blue);
+        }
+
+        .app {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        .sidebar {
+            width: 245px;
+            flex-shrink: 0;
+            background: #0e141c;
+            border-right: 1px solid var(--border);
+            padding: 22px 15px;
+        }
+
+        .brand {
+            font-size: 23px;
+            font-weight: 700;
+            margin: 0 10px 28px;
+        }
+
+        .brand span {
+            display: block;
+            color: var(--muted);
+            font-size: 11px;
+            font-weight: 400;
+            line-height: 1.45;
+            margin-top: 6px;
+        }
+
+        .nav {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .nav-item {
+            width: 100%;
+            border: 1px solid transparent;
+            background: transparent;
+            color: var(--muted);
+            text-align: left;
+            padding: 11px 13px;
+            border-radius: 8px;
+        }
+
+        .nav-item:hover:not(:disabled) {
+            background: #151d27;
+            color: var(--text);
+        }
+
+        .nav-item.active {
+            background: #1c2632;
+            border-color: #2c3947;
+            color: #fff;
+        }
+
+        .main {
+            flex: 1;
+            min-width: 0;
+            padding: 26px;
+            overflow-x: hidden;
+        }
+
+        .topbar {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 18px;
+            margin-bottom: 17px;
+        }
+
+        .title h1 {
+            font-size: 27px;
+        }
+
+        .title p {
+            color: var(--muted);
+            font-size: 13px;
+            margin-top: 6px;
+        }
+
+        .controls {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .start {
+            border-color: #2ea043;
+        }
+
+        .stop {
+            border-color: #da3633;
+        }
+
+        .status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--muted);
+            font-size: 13px;
+            margin-bottom: 17px;
+        }
+
+        .dot {
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            background: var(--muted-2);
+            flex-shrink: 0;
+        }
+
+        .message {
+            min-height: 20px;
+            color: var(--muted);
+            font-size: 13px;
+            margin-bottom: 15px;
+        }
+
+        .page {
+            display: none;
+        }
+
+        .page.active {
+            display: block;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns:
+                repeat(4, minmax(0, 1fr));
+            gap: 15px;
+            margin-bottom: 16px;
+        }
+
+        .section-grid {
+            display: grid;
+            grid-template-columns:
+                repeat(2, minmax(0, 1fr));
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+
+        .card {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 18px;
+            min-width: 0;
+        }
+
+        .card-label {
+            color: var(--muted);
+            font-size: 12px;
+            margin-bottom: 11px;
+        }
+
+        .score {
+            font-size: 38px;
+            font-weight: 700;
+        }
+
+        .level {
+            font-size: 18px;
+            font-weight: 700;
+        }
+
+        .normal {
+            color: var(--green);
+        }
+
+        .warning {
+            color: var(--yellow);
+        }
+
+        .critical {
+            color: var(--red);
+        }
+
+        .number {
+            font-size: 29px;
+            font-weight: 700;
+        }
+
+        .section-title {
+            font-size: 15px;
+            font-weight: 600;
+            margin-bottom: 14px;
+        }
+
+        .table-wrap {
+            width: 100%;
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
+
+        th,
+        td {
+            padding: 10px 8px;
+            text-align: left;
+            border-bottom: 1px solid #232d38;
+            white-space: nowrap;
+        }
+
+        th {
+            color: var(--muted);
+            font-weight: 500;
+        }
+
+        td {
+            color: #d8e0e8;
+        }
+
+        .empty {
+            color: var(--muted-2);
+            text-align: center;
+            padding: 18px 8px;
+        }
+
+        .chart {
+            width: 100%;
+            height: 250px;
+            display: block;
+            background: #0b1118;
+            border: 1px solid #202a35;
+            border-radius: 8px;
+        }
+
+        .files-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .file-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 10px;
+            background: #0b1118;
+            border: 1px solid #202a35;
+            border-radius: 7px;
+        }
+
+        .file-path {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .file-count {
+            color: var(--blue);
+            flex-shrink: 0;
+        }
+
+        .form {
+            display: grid;
+            gap: 13px;
+            max-width: 650px;
+        }
+
+        .form-row {
+            display: grid;
+            gap: 6px;
+        }
+
+        .form-row label {
+            color: var(--muted);
+            font-size: 12px;
+        }
+
+        .form-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .report-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 15px;
+            padding: 12px;
+            border-bottom: 1px solid #232d38;
+        }
+
+        .report-info {
+            min-width: 0;
+        }
+
+        .report-title {
+            font-weight: 600;
+        }
+
+        .report-meta {
+            color: var(--muted);
+            font-size: 11px;
+            margin-top: 4px;
+        }
+
+        .report-actions {
+            display: flex;
+            gap: 7px;
+            flex-shrink: 0;
+        }
+
+        .danger {
+            border-color: #8e2d2b;
+        }
+
+        .info {
+            color: var(--blue);
+        }
+
+        .footer {
+            color: var(--muted-2);
+            font-size: 11px;
+            text-align: center;
+            padding: 17px 0 5px;
+        }
+
+        @media (max-width: 1150px) {
+            .grid {
+                grid-template-columns:
+                    repeat(2, minmax(0, 1fr));
+            }
+        }
+
+        @media (max-width: 850px) {
+            .sidebar {
+                width: 190px;
+            }
+
+            .section-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 650px) {
+            .app {
+                display: block;
+            }
+
+            .sidebar {
+                width: 100%;
+                border-right: 0;
+                border-bottom: 1px solid var(--border);
+                padding: 14px;
+            }
+
+            .brand {
+                margin-bottom: 12px;
+            }
+
+            .nav {
+                display: grid;
+                grid-template-columns:
+                    repeat(2, minmax(0, 1fr));
+            }
+
+            .main {
+                padding: 16px;
+            }
+
+            .topbar {
+                flex-direction: column;
+            }
+
+            .grid {
+                grid-template-columns: 1fr;
+            }
+
+            .report-row {
+                align-items: flex-start;
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="app">
+
+    <aside class="sidebar">
+        <div class="brand">
+            RDRS
+            <span>
+                Ransomware Detection &amp; Response System
+            </span>
+        </div>
+
+        <nav class="nav">
+            <button
+                class="nav-item active"
+                data-page="dashboard"
+            >
+                Dashboard
+            </button>
+
+            <button
+                class="nav-item"
+                data-page="events"
+            >
+                Events
+            </button>
+
+            <button
+                class="nav-item"
+                data-page="processes"
+            >
+                Processes
+            </button>
+
+            <button
+                class="nav-item"
+                data-page="alerts"
+            >
+                Alerts
+            </button>
+
+            <button
+                class="nav-item"
+                data-page="incidents"
+            >
+                Incidents
+            </button>
+
+            <button
+                class="nav-item"
+                data-page="reports"
+            >
+                Reports
+            </button>
+
+            <button
+                class="nav-item"
+                data-page="settings"
+            >
+                Settings
+            </button>
+        </nav>
+    </aside>
+
+    <main class="main">
+
+        <header class="topbar">
+            <div class="title">
+                <h1 id="pageTitle">
+                    Security Dashboard
+                </h1>
+                <p id="pageSubtitle">
+                    RDRS real-time monitoring
+                </p>
+            </div>
+
+            <div class="controls">
+                <button
+                    class="start"
+                    id="startBtn"
+                >
+                    Start Monitoring
+                </button>
+
+                <button
+                    class="stop"
+                    id="stopBtn"
+                >
+                    Stop Monitoring
+                </button>
+
+                <button id="refreshBtn">
+                    Refresh
+                </button>
+            </div>
+        </header>
+
+        <div class="status">
+            <span
+                class="dot"
+                id="statusDot"
+            ></span>
+
+            <span id="statusText">
+                Reading RDRS runtime status...
+            </span>
+        </div>
+
+        <div
+            class="message"
+            id="message"
+            aria-live="polite"
+        ></div>
+
+        <!-- DASHBOARD -->
+
+        <section
+            class="page active"
+            id="page-dashboard"
+        >
+
+            <div class="grid">
+
+                <div class="card">
+                    <div class="card-label">
+                        Threat Score
+                    </div>
+
+                    <div
+                        class="score"
+                        id="score"
+                    >
+                        0.0
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-label">
+                        Threat Level
+                    </div>
+
+                    <div
+                        class="level normal"
+                        id="level"
+                    >
+                        Normal
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-label">
+                        File Events
+                    </div>
+
+                    <div
+                        class="number"
+                        id="eventCount"
+                    >
+                        0
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-label">
+                        Alerts
+                    </div>
+
+                    <div
+                        class="number"
+                        id="alertCount"
+                    >
+                        0
+                    </div>
+                </div>
+
+            </div>
+
+            <div class="grid">
+
+                <div class="card">
+                    <div class="card-label">
+                        Processes
+                    </div>
+
+                    <div
+                        class="number"
+                        id="processCount"
+                    >
+                        0
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-label">
+                        Incidents
+                    </div>
+
+                    <div
+                        class="number"
+                        id="incidentCount"
+                    >
+                        0
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-label">
+                        Score Reason
+                    </div>
+
+                    <div id="scoreReason">
+                        No score recorded
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-label">
+                        Last Score Update
+                    </div>
+
+                    <div id="scoreTime">
+                        —
+                    </div>
+                </div>
+
+            </div>
+
+            <div class="section-grid">
+
+                <div class="card">
+                    <div class="section-title">
+                        CPU History
+                    </div>
+
+                    <canvas
+                        class="chart"
+                        id="cpuChart"
+                    ></canvas>
+                </div>
+
+                <div class="card">
+                    <div class="section-title">
+                        Entropy History
+                    </div>
+
+                    <canvas
+                        class="chart"
+                        id="entropyChart"
+                    ></canvas>
+                </div>
+
+            </div>
+
+            <div class="section-grid">
+
+                <div class="card">
+                    <div class="section-title">
+                        Recent File Events
+                    </div>
+
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                            <tr>
+                                <th>Action</th>
+                                <th>Path</th>
+                                <th>Time</th>
+                            </tr>
+                            </thead>
+
+                            <tbody id="dashboardEvents">
+                            <tr>
+                                <td
+                                    colspan="3"
+                                    class="empty"
+                                >
+                                    No events
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="section-title">
+                        Recent Alerts
+                    </div>
+
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                            <tr>
+                                <th>Severity</th>
+                                <th>Message</th>
+                                <th>Time</th>
+                            </tr>
+                            </thead>
+
+                            <tbody id="dashboardAlerts">
+                            <tr>
+                                <td
+                                    colspan="3"
+                                    class="empty"
+                                >
+                                    No alerts
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+
+            <div class="section-grid">
+
+                <div class="card">
+                    <div class="section-title">
+                        Top Modified Files
+                    </div>
+
+                    <div
+                        class="files-list"
+                        id="topModified"
+                    >
+                        <div class="empty">
+                            No modified-file data
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="section-title">
+                        Recent Processes
+                    </div>
+
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                            <tr>
+                                <th>PID</th>
+                                <th>Name</th>
+                                <th>CPU %</th>
+                                <th>Memory %</th>
+                            </tr>
+                            </thead>
+
+                            <tbody id="dashboardProcesses">
+                            <tr>
+                                <td
+                                    colspan="4"
+                                    class="empty"
+                                >
+                                    No process telemetry
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+
+        </section>
+
+        <!-- EVENTS -->
+
+        <section
+            class="page"
+            id="page-events"
+        >
+            <div class="card">
+                <div class="section-title">
+                    File System Events
+                </div>
+
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                        <tr>
+                            <th>Action</th>
+                            <th>Path</th>
+                            <th>File Type</th>
+                            <th>Entropy</th>
+                            <th>Time</th>
+                        </tr>
+                        </thead>
+
+                        <tbody id="eventsPageTable">
+                        <tr>
+                            <td
+                                colspan="5"
+                                class="empty"
+                            >
+                                No events
+                            </td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- PROCESSES -->
+
+        <section
+            class="page"
+            id="page-processes"
+        >
+            <div class="card">
+                <div class="section-title">
+                    Process Telemetry
+                </div>
+
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                        <tr>
+                            <th>PID</th>
+                            <th>Name</th>
+                            <th>CPU %</th>
+                            <th>Memory %</th>
+                            <th>Disk Writes</th>
+                            <th>Executable</th>
+                            <th>Parent</th>
+                        </tr>
+                        </thead>
+
+                        <tbody id="processPageTable">
+                        <tr>
+                            <td
+                                colspan="7"
+                                class="empty"
+                            >
+                                No process telemetry
+                            </td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ALERTS -->
+
+        <section
+            class="page"
+            id="page-alerts"
+        >
+            <div class="card">
+                <div class="section-title">
+                    Alerts
+                </div>
+
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                        <tr>
+                            <th>Severity</th>
+                            <th>Message</th>
+                            <th>Score</th>
+                            <th>Time</th>
+                        </tr>
+                        </thead>
+
+                        <tbody id="alertsPageTable">
+                        <tr>
+                            <td
+                                colspan="4"
+                                class="empty"
+                            >
+                                No alerts
+                            </td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- INCIDENTS -->
+
+        <section
+            class="page"
+            id="page-incidents"
+        >
+            <div class="card">
+                <div class="section-title">
+                    Incidents
+                </div>
+
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Severity</th>
+                            <th>Status</th>
+                            <th>Score</th>
+                            <th>Time</th>
+                        </tr>
+                        </thead>
+
+                        <tbody id="incidentsPageTable">
+                        <tr>
+                            <td
+                                colspan="5"
+                                class="empty"
+                            >
+                                No incidents
+                            </td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- REPORTS -->
+
+        <section
+            class="page"
+            id="page-reports"
+        >
+            <div class="card">
+                <div class="section-title">
+                    Incident Reports
+                </div>
+
+                <div id="reportsList">
+                    <div class="empty">
+                        Loading incidents...
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- SETTINGS -->
+
+        <section
+            class="page"
+            id="page-settings"
+        >
+            <div class="card">
+                <div class="section-title">
+                    Runtime Settings
+                </div>
+
+                <form
+                    class="form"
+                    id="settingsForm"
+                >
+
+                    <div class="form-row">
+                        <label for="settingName">
+                            Name
+                        </label>
+
+                        <input
+                            id="settingName"
+                            name="name"
+                            type="text"
+                        >
+                    </div>
+
+                    <div class="form-row">
+                        <label for="settingEnvironment">
+                            Environment
+                        </label>
+
+                        <input
+                            id="settingEnvironment"
+                            name="environment"
+                            type="text"
+                        >
+                    </div>
+
+                    <div class="form-row">
+                        <label for="settingTimeout">
+                            Shutdown Timeout
+                        </label>
+
+                        <input
+                            id="settingTimeout"
+                            name="shutdown_timeout"
+                            type="number"
+                            min="0.1"
+                            step="0.1"
+                        >
+                    </div>
+
+                    <div class="form-row">
+                        <label for="settingLogLevel">
+                            Log Level
+                        </label>
+
+                        <select
+                            id="settingLogLevel"
+                            name="log_level"
+                        >
+                            <option value="DEBUG">
+                                DEBUG
+                            </option>
+
+                            <option value="INFO">
+                                INFO
+                            </option>
+
+                            <option value="WARNING">
+                                WARNING
+                            </option>
+
+                            <option value="ERROR">
+                                ERROR
+                            </option>
+
+                            <option value="CRITICAL">
+                                CRITICAL
+                            </option>
+                        </select>
+                    </div>
+
+                    <div class="form-row">
+                        <label for="settingPersistence">
+                            Persistence
+                        </label>
+
+                        <select
+                            id="settingPersistence"
+                            name="persistence_enabled"
+                        >
+                            <option value="true">
+                                Enabled
+                            </option>
+
+                            <option value="false">
+                                Disabled
+                            </option>
+                        </select>
+                    </div>
+
+                    <div class="form-actions">
+                        <button
+                            type="submit"
+                            class="start"
+                        >
+                            Save Settings
+                        </button>
+
+                        <button
+                            type="button"
+                            id="loadSettingsBtn"
+                        >
+                            Load Current Settings
+                        </button>
+                    </div>
+
+                </form>
+            </div>
+        </section>
+
+        <div class="footer">
+            RDRS · Data provided by the RDRS API
+        </div>
+
+    </main>
+</div>
+
+<script>
+    const API = {
+        health: "/health",
+        status: "/status",
+        dashboard: "/dashboard-data",
+        events: "/events",
+        processes: "/processes",
+        alerts: "/alerts",
+        incidents: "/incidents",
+        reports: "/reports",
+        reportGenerate: "/reports/generate",
+        scan: "/scan",
+        settings: "/settings",
+        start: "/monitor/start",
+        stop: "/monitor/stop"
+    };
+
+    const state = {
+        dashboard: null,
+        status: null
+    };
+
+    const pageTitles = {
+        dashboard: [
+            "Security Dashboard",
+            "RDRS real-time monitoring"
+        ],
+        events: [
+            "File Events",
+            "Real-time filesystem activity"
+        ],
+        processes: [
+            "Processes",
+            "Process telemetry collected by RDRS"
+        ],
+        alerts: [
+            "Alerts",
+            "Recorded RDRS security alerts"
+        ],
+        incidents: [
+            "Incidents",
+            "Recorded RDRS security incidents"
+        ],
+        reports: [
+            "Reports",
+            "Generate JSON and CSV incident reports"
+        ],
+        settings: [
+            "Settings",
+            "Runtime configuration"
+        ]
+    };
+
+    const startBtn =
+        document.getElementById("startBtn");
+
+    const stopBtn =
+        document.getElementById("stopBtn");
+
+    const refreshBtn =
+        document.getElementById("refreshBtn");
+
+    const statusDot =
+        document.getElementById("statusDot");
+
+    const statusText =
+        document.getElementById("statusText");
+
+    const message =
+        document.getElementById("message");
+
+    function escapeHtml(value) {
+        return String(value ?? "")
+            .replaceAll("&", "&amp;")
+            .replaceAll("<", "&lt;")
+            .replaceAll(">", "&gt;")
+            .replaceAll('"', "&quot;")
+            .replaceAll("'", "&#039;");
+    }
+
+    function formatTime(value) {
+        if (!value) {
+            return "—";
+        }
+
+        const date = new Date(value);
+
+        if (Number.isNaN(date.getTime())) {
+            return String(value);
+        }
+
+        return date.toLocaleString();
+    }
+
+    function number(value, digits = 2) {
+        const parsed = Number(value);
+
+        if (!Number.isFinite(parsed)) {
+            return "—";
+        }
+
+        return parsed.toFixed(digits);
+    }
+
+    function levelClass(level) {
+        const value =
+            String(level || "Normal")
+                .toLowerCase();
+
+        if (value === "critical") {
+            return "critical";
+        }
+
+        if (value === "warning") {
+            return "warning";
+        }
+
+        return "normal";
+    }
+
+    async function request(
+        url,
+        options = {}
+    ) {
+        const response = await fetch(
+            url,
+            {
+                cache: "no-store",
+                ...options
+            }
+        );
+
+        let data = null;
+
+        try {
+            data = await response.json();
+        } catch {
+            data = null;
+        }
+
+        if (!response.ok) {
+            const detail =
+                data && data.detail
+                    ? data.detail
+                    : `HTTP ${response.status}`;
+
+            throw new Error(detail);
+        }
+
+        return data;
+    }
+
+    function showMessage(text) {
+        message.textContent = text || "";
+    }
+
+    function updateControls(status) {
+        const running =
+            status === "RUNNING" ||
+            status === "DEGRADED";
+
+        startBtn.disabled = running;
+        stopBtn.disabled = !running;
+    }
+
+    function renderStatus(data) {
+        state.status = data;
+
+        const runtimeState =
+            data && data.state
+                ? data.state
+                : "UNKNOWN";
+
+        updateControls(runtimeState);
+
+        if (runtimeState === "RUNNING") {
+            statusDot.style.background =
+                "var(--green)";
+
+            statusText.textContent =
+                "RDRS monitoring RUNNING";
+            return;
+        }
+
+        if (runtimeState === "DEGRADED") {
+            statusDot.style.background =
+                "var(--yellow)";
+
+            statusText.textContent =
+                "RDRS monitoring DEGRADED";
+            return;
+        }
+
+        if (runtimeState === "STARTING") {
+            statusDot.style.background =
+                "var(--yellow)";
+
+            statusText.textContent =
+                "RDRS monitoring STARTING";
+            return;
+        }
+
+        if (runtimeState === "FAILED") {
+            statusDot.style.background =
+                "var(--red)";
+
+            statusText.textContent =
+                "RDRS runtime FAILED";
+            return;
+        }
+
+        if (runtimeState === "SHUTTING_DOWN") {
+            statusDot.style.background =
+                "var(--yellow)";
+
+            statusText.textContent =
+                "RDRS monitoring SHUTTING DOWN";
+            return;
+        }
+
+        statusDot.style.background =
+            "var(--muted-2)";
+
+        statusText.textContent =
+            "RDRS monitoring STOPPED";
+    }
+
+    function renderScore(score) {
+        const scoreData =
+            score || {};
+
+        const scoreValue =
+            Number(scoreData.score || 0);
+
+        const level =
+            scoreData.level || "Normal";
+
+        document.getElementById(
+            "score"
+        ).textContent =
+            number(scoreValue, 1);
+
+        const levelElement =
+            document.getElementById("level");
+
+        levelElement.textContent = level;
+        levelElement.className =
+            `level ${levelClass(level)}`;
+
+        document.getElementById(
+            "scoreReason"
+        ).textContent =
+            scoreData.reason ||
+            "No score recorded";
+
+        document.getElementById(
+            "scoreTime"
+        ).textContent =
+            formatTime(scoreData.created_at);
+    }
+
+    function renderSummary(summary) {
+        const data = summary || {};
+
+        document.getElementById(
+            "eventCount"
+        ).textContent =
+            data.event_count ?? 0;
+
+        document.getElementById(
+            "processCount"
+        ).textContent =
+            data.process_count ?? 0;
+
+        document.getElementById(
+            "alertCount"
+        ).textContent =
+            data.alert_count ?? 0;
+
+        document.getElementById(
+            "incidentCount"
+        ).textContent =
+            data.incident_count ?? 0;
+    }
+
+    function renderEvents(
+        events,
+        elementId
+    ) {
+        const table =
+            document.getElementById(elementId);
+
+        if (!Array.isArray(events) ||
+            events.length === 0) {
+            const colspan =
+                elementId === "eventsPageTable"
+                    ? 5
+                    : 3;
+
+            table.innerHTML =
+                `<tr>
+                    <td colspan="${colspan}"
+                        class="empty">
+                        No events
+                    </td>
+                </tr>`;
+
+            return;
+        }
+
+        if (elementId === "eventsPageTable") {
+            table.innerHTML =
+                events.map(event => `
+                    <tr>
+                        <td>
+                            ${escapeHtml(event.action)}
+                        </td>
+                        <td>
+                            ${escapeHtml(event.path)}
+                        </td>
+                        <td>
+                            ${escapeHtml(
+                                event.metadata?.file_type ||
+                                event.file_type ||
+                                "—"
+                            )}
+                        </td>
+                        <td>
+                            ${escapeHtml(
+                                number(
+                                    event.metadata?.entropy ??
+                                    event.entropy,
+                                    3
+                                )
+                            )}
+                        </td>
+                        <td>
+                            ${escapeHtml(
+                                formatTime(
+                                    event.created_at ||
+                                    event.timestamp
+                                )
+                            )}
+                        </td>
+                    </tr>
+                `).join("");
+
+            return;
+        }
+
+        table.innerHTML =
+            events.map(event => `
+                <tr>
+                    <td>
+                        ${escapeHtml(event.action)}
+                    </td>
+                    <td>
+                        ${escapeHtml(event.path)}
+                    </td>
+                    <td>
+                        ${escapeHtml(
+                            formatTime(
+                                event.created_at ||
+                                event.timestamp
+                            )
+                        )}
+                    </td>
+                </tr>
+            `).join("");
+    }
+
+    function renderProcesses(
+        processes,
+        elementId
+    ) {
+        const table =
+            document.getElementById(elementId);
+
+        if (!Array.isArray(processes) ||
+            processes.length === 0) {
+            const colspan =
+                elementId === "processPageTable"
+                    ? 7
+                    : 4;
+
+            table.innerHTML =
+                `<tr>
+                    <td colspan="${colspan}"
+                        class="empty">
+                        No process telemetry
+                    </td>
+                </tr>`;
+
+            return;
+        }
+
+        if (elementId === "processPageTable") {
+            table.innerHTML =
+                processes.map(process => `
+                    <tr>
+                        <td>
+                            ${escapeHtml(process.pid)}
+                        </td>
+                        <td>
+                            ${escapeHtml(process.name)}
+                        </td>
+                        <td>
+                            ${escapeHtml(
+                                number(
+                                    process.cpu_percent,
+                                    2
+                                )
+                            )}
+                        </td>
+                        <td>
+                            ${escapeHtml(
+                                number(
+                                    process.memory_percent,
+                                    2
+                                )
+                            )}
+                        </td>
+                        <td>
+                            ${escapeHtml(
+                                process.disk_writes ?? "—"
+                            )}
+                        </td>
+                        <td>
+                            ${escapeHtml(
+                                process.executable_path ||
+                                "—"
+                            )}
+                        </td>
+                        <td>
+                            ${escapeHtml(
+                                process.parent_process ||
+                                process.parent_name ||
+                                "—"
+                            )}
+                        </td>
+                    </tr>
+                `).join("");
+
+            return;
+        }
+
+        table.innerHTML =
+            processes.map(process => `
+                <tr>
+                    <td>
+                        ${escapeHtml(process.pid)}
+                    </td>
+                    <td>
+                        ${escapeHtml(process.name)}
+                    </td>
+                    <td>
+                        ${escapeHtml(
+                            number(
+                                process.cpu_percent,
+                                2
+                            )
+                        )}
+                    </td>
+                    <td>
+                        ${escapeHtml(
+                            number(
+                                process.memory_percent,
+                                2
+                            )
+                        )}
+                    </td>
+                </tr>
+            `).join("");
+    }
+
+    function renderAlerts(
+        alerts,
+        elementId
+    ) {
+        const table =
+            document.getElementById(elementId);
+
+        if (!Array.isArray(alerts) ||
+            alerts.length === 0) {
+            const colspan =
+                elementId === "alertsPageTable"
+                    ? 4
+                    : 3;
+
+            table.innerHTML =
+                `<tr>
+                    <td colspan="${colspan}"
+                        class="empty">
+                        No alerts
+                    </td>
+                </tr>`;
+
+            return;
+        }
+
+        if (elementId === "alertsPageTable") {
+            table.innerHTML =
+                alerts.map(alert => `
+                    <tr>
+                        <td>
+                            ${escapeHtml(
+                                alert.severity ||
+                                alert.level
+                            )}
+                        </td>
+                        <td>
+                            ${escapeHtml(
+                                alert.message ||
+                                alert.description
+                            )}
+                        </td>
+                        <td>
+                            ${escapeHtml(
+                                number(
+                                    alert.evidence?.score ??
+                                    alert.score ??
+                                    alert.threat_score,
+                                    1
+                                )
+                            )}
+                        </td>
+                        <td>
+                            ${escapeHtml(
+                                formatTime(
+                                    alert.created_at ||
+                                    alert.timestamp
+                                )
+                            )}
+                        </td>
+                    </tr>
+                `).join("");
+
+            return;
+        }
+
+        table.innerHTML =
+            alerts.map(alert => `
+                <tr>
+                    <td>
+                        ${escapeHtml(
+                            alert.severity ||
+                            alert.level
+                        )}
+                    </td>
+                    <td>
+                        ${escapeHtml(
+                            alert.message ||
+                            alert.description
+                        )}
+                    </td>
+                    <td>
+                        ${escapeHtml(
+                            formatTime(
+                                alert.created_at ||
+                                alert.timestamp
+                            )
+                        )}
+                    </td>
+                </tr>
+            `).join("");
+    }
+
+    function renderIncidents(
+        incidents
+    ) {
+        const table =
+            document.getElementById(
+                "incidentsPageTable"
+            );
+
+        if (!Array.isArray(incidents) ||
+            incidents.length === 0) {
+            table.innerHTML =
+                `<tr>
+                    <td colspan="5"
+                        class="empty">
+                        No incidents
+                    </td>
+                </tr>`;
+
+            return;
+        }
+
+        table.innerHTML =
+            incidents.map(incident => `
+                <tr>
+                    <td>
+                        ${escapeHtml(
+                            incident.id ??
+                            incident.incident_id
+                        )}
+                    </td>
+                    <td>
+                        ${escapeHtml(
+                            incident.severity ||
+                            incident.level ||
+                            incident.threat_level
+                        )}
+                    </td>
+                    <td>
+                        ${escapeHtml(
+                            incident.status ||
+                            "—"
+                        )}
+                    </td>
+                    <td>
+                        ${escapeHtml(
+                            number(
+                                incident.evidence?.score ??
+                                incident.score ??
+                                incident.threat_score,
+                                1
+                            )
+                        )}
+                    </td>
+                    <td>
+                        ${escapeHtml(
+                            formatTime(
+                                incident.created_at ||
+                                incident.timestamp
+                            )
+                        )}
+                    </td>
+                </tr>
+            `).join("");
+    }
+
+    function renderTopModified(files) {
+        const container =
+            document.getElementById(
+                "topModified"
+            );
+
+        if (!Array.isArray(files) ||
+            files.length === 0) {
+            container.innerHTML =
+                `<div class="empty">
+                    No modified-file data
+                </div>`;
+
+            return;
+        }
+
+        container.innerHTML =
+            files.map(item => {
+                const path =
+                    item.path ||
+                    item.file ||
+                    item.name ||
+                    "";
+
+                const count =
+                    item.count ??
+                    item.modifications ??
+                    item.event_count ??
+                    0;
+
+                return `
+                    <div class="file-row">
+                        <span
+                            class="file-path"
+                            title="${escapeHtml(path)}"
+                        >
+                            ${escapeHtml(path)}
+                        </span>
+
+                        <span class="file-count">
+                            ${escapeHtml(count)}
+                        </span>
+                    </div>
+                `;
+            }).join("");
+    }
+
+    function normalizeSeries(
+        source,
+        valueKeys
+    ) {
+        if (!Array.isArray(source)) {
+            return [];
+        }
+
+        return source.map(item => {
+            if (
+                typeof item === "number"
+            ) {
+                return item;
+            }
+
+            for (const key of valueKeys) {
+                const value =
+                    Number(item?.[key]);
+
+                if (Number.isFinite(value)) {
+                    return value;
+                }
+            }
+
+            return null;
+        }).filter(
+            value => value !== null
+        );
+    }
+
+    function drawChart(
+        canvas,
+        values,
+        minValue,
+        maxValue
+    ) {
+        const context =
+            canvas.getContext("2d");
+
+        const width =
+            canvas.clientWidth || 500;
+
+        const height =
+            canvas.clientHeight || 250;
+
+        const ratio =
+            window.devicePixelRatio || 1;
+
+        canvas.width =
+            width * ratio;
+
+        canvas.height =
+            height * ratio;
+
+        context.setTransform(
+            ratio,
+            0,
+            0,
+            ratio,
+            0,
+            0
+        );
+
+        context.clearRect(
+            0,
+            0,
+            width,
+            height
+        );
+
+        context.strokeStyle =
+            "#26313d";
+
+        context.lineWidth = 1;
+
+        for (let i = 1; i < 5; i++) {
+            const y =
+                (height / 5) * i;
+
+            context.beginPath();
+            context.moveTo(0, y);
+            context.lineTo(width, y);
+            context.stroke();
+        }
+
+        if (!values.length) {
+            context.fillStyle =
+                "#687584";
+
+            context.font =
+                "12px Arial";
+
+            context.textAlign =
+                "center";
+
+            context.fillText(
+                "No telemetry data",
+                width / 2,
+                height / 2
+            );
+
+            return;
+        }
+
+        const range =
+            Math.max(
+                maxValue - minValue,
+                0.0001
+            );
+
+        const padding = 15;
+
+        context.strokeStyle =
+            "#79c0ff";
+
+        context.lineWidth = 2;
+
+        context.beginPath();
+
+        values.forEach(
+            (value, index) => {
+                const x =
+                    values.length === 1
+                        ? width / 2
+                        : padding +
+                          (
+                              (width -
+                               padding * 2) /
+                              (values.length - 1)
+                          ) * index;
+
+                const normalized =
+                    (
+                        value - minValue
+                    ) / range;
+
+                const y =
+                    height -
+                    padding -
+                    normalized *
+                    (height - padding * 2);
+
+                if (index === 0) {
+                    context.moveTo(x, y);
+                } else {
+                    context.lineTo(x, y);
+                }
+            }
+        );
+
+        context.stroke();
+
+        context.fillStyle =
+            "#79c0ff";
+
+        values.forEach(
+            (value, index) => {
+                const x =
+                    values.length === 1
+                        ? width / 2
+                        : padding +
+                          (
+                              (width -
+                               padding * 2) /
+                              (values.length - 1)
+                          ) * index;
+
+                const normalized =
+                    (
+                        value - minValue
+                    ) / range;
+
+                const y =
+                    height -
+                    padding -
+                    normalized *
+                    (height - padding * 2);
+
+                context.beginPath();
+                context.arc(
+                    x,
+                    y,
+                    2.5,
+                    0,
+                    Math.PI * 2
+                );
+                context.fill();
+            }
+        );
+    }
+
+    function renderCharts(data) {
+        const telemetry =
+            data?.telemetry || {};
+
+        const cpu =
+            normalizeSeries(
+                data?.cpu_history ||
+                telemetry.cpu_history ||
+                telemetry.cpu ||
+                [],
+                [
+                    "cpu_percent",
+                    "cpu",
+                    "value"
+                ]
+            );
+
+        const entropy =
+            normalizeSeries(
+                data?.entropy_history ||
+                telemetry.entropy_history ||
+                telemetry.entropy ||
+                [],
+                [
+                    "entropy",
+                    "value"
+                ]
+            );
+
+        drawChart(
+            document.getElementById("cpuChart"),
+            cpu,
+            0,
+            100
+        );
+
+        drawChart(
+            document.getElementById(
+                "entropyChart"
+            ),
+            entropy,
+            0,
+            8
+        );
+    }
+
+    function renderDashboard(data) {
+        state.dashboard = data;
+
+        renderSummary(
+            data?.summary
+        );
+
+        renderScore(
+            data?.score
+        );
+
+        renderEvents(
+            data?.events || [],
+            "dashboardEvents"
+        );
+
+        renderProcesses(
+            data?.processes || [],
+            "dashboardProcesses"
+        );
+
+        renderAlerts(
+            data?.alerts || [],
+            "dashboardAlerts"
+        );
+
+        renderIncidents(
+            data?.incidents || []
+        );
+
+        renderTopModified(
+            data?.top_modified || []
+        );
+
+        renderCharts(data);
+    }
+
+    async function loadDashboard() {
+        const data =
+            await request(API.dashboard);
+
+        renderDashboard(data);
+    }
+
+    async function loadEventsPage() {
+        const data =
+            await request(
+                `${API.events}?limit=200`
+            );
+
+        renderEvents(
+            data,
+            "eventsPageTable"
+        );
+    }
+
+    async function loadProcessesPage() {
+        const data =
+            await request(
+                `${API.processes}?limit=200`
+            );
+
+        renderProcesses(
+            data,
+            "processPageTable"
+        );
+    }
+
+    async function loadAlertsPage() {
+        const data =
+            await request(
+                `${API.alerts}?limit=200`
+            );
+
+        renderAlerts(
+            data,
+            "alertsPageTable"
+        );
+    }
+
+    async function loadIncidentsPage() {
+        const data =
+            await request(
+                `${API.incidents}?limit=200`
+            );
+
+        renderIncidents(data);
+    }
+
+    function renderReports(
+        response
+    ) {
+        const container =
+            document.getElementById(
+                "reportsList"
+            );
+
+        const incidents =
+            response?.incidents || [];
+
+        if (!incidents.length) {
+            container.innerHTML =
+                `<div class="empty">
+                    No incidents available
+                </div>`;
+
+            return;
+        }
+
+        container.innerHTML =
+            incidents.map(incident => {
+                const id =
+                    incident.id ??
+                    incident.incident_id;
+
+                const severity =
+                    incident.severity ||
+                    incident.level ||
+                    incident.threat_level ||
+                    "—";
+
+                const score =
+                    incident.evidence?.score ??
+                    incident.score ??
+                    incident.threat_score ??
+                    0;
+
+                const created =
+                    formatTime(
+                        incident.created_at ||
+                        incident.timestamp
+                    );
+
+                return `
+                    <div class="report-row">
+                        <div class="report-info">
+                            <div class="report-title">
+                                Incident #${escapeHtml(id)}
+                            </div>
+
+                            <div class="report-meta">
+                                Severity:
+                                ${escapeHtml(severity)}
+                                · Score:
+                                ${escapeHtml(
+                                    number(score, 1)
+                                )}
+                                · ${escapeHtml(created)}
+                            </div>
+                        </div>
+
+                        <div class="report-actions">
+                            <button
+                                data-report-id="${escapeHtml(id)}"
+                                data-report-format="json"
+                                class="generate-report"
+                            >
+                                JSON
+                            </button>
+
+                            <button
+                                data-report-id="${escapeHtml(id)}"
+                                data-report-format="csv"
+                                class="generate-report"
+                            >
+                                CSV
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join("");
+
+        document
+            .querySelectorAll(".generate-report")
+            .forEach(button => {
+                button.addEventListener(
+                    "click",
+                    () => generateReport(
+                        button.dataset.reportId,
+                        button.dataset.reportFormat
+                    )
+                );
+            });
+    }
+
+    async function loadReportsPage() {
+        const data =
+            await request(
+                `${API.reports}?limit=200`
+            );
+
+        renderReports(data);
+    }
+
+    async function generateReport(
+        incidentId,
+        format
+    ) {
+        showMessage(
+            `Generating ${format.toUpperCase()} report...`
+        );
+
+        const params =
+            new URLSearchParams({
+                incident_id: incidentId,
+                format: format
+            });
+
+        const result =
+            await request(
+                `${API.reportGenerate}?${params}`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Accept":
+                            "application/json"
+                    }
+                }
+            );
+
+        showMessage(
+            `${format.toUpperCase()} report generated for incident #${incidentId}.`
+        );
+
+        const path =
+            result.path;
+
+        if (!path) {
+            return;
+        }
+
+        const filename =
+            path.split(/[\\/]/).pop();
+
+        const downloadUrl =
+            `${API.reports}/${incidentId}/${format}`;
+
+        const link =
+            document.createElement("a");
+
+        link.href = downloadUrl;
+        link.download = filename || "";
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+    }
+
+    function populateSettings(config) {
+        if (!config) {
+            return;
+        }
+
+        document.getElementById(
+            "settingName"
+        ).value =
+            config.name ?? "";
+
+        document.getElementById(
+            "settingEnvironment"
+        ).value =
+            config.environment ?? "";
+
+        document.getElementById(
+            "settingTimeout"
+        ).value =
+            config.shutdown_timeout ?? "";
+
+        document.getElementById(
+            "settingLogLevel"
+        ).value =
+            config.log_level || "INFO";
+
+        document.getElementById(
+            "settingPersistence"
+        ).value =
+            config.persistence_enabled === false
+                ? "false"
+                : "true";
+    }
+
+    async function loadSettings() {
+        const data =
+            await request(API.status);
+
+        populateSettings(
+            data?.config ||
+            data?.configuration ||
+            null
+        );
+
+        showMessage(
+            "Current runtime settings loaded."
+        );
+    }
+
+    async function saveSettings(event) {
+        event.preventDefault();
+
+        const form =
+            new FormData(event.target);
+
+        const payload = {
+            name:
+                String(
+                    form.get("name") || ""
+                ).trim(),
+
+            environment:
+                String(
+                    form.get("environment") || ""
+                ).trim(),
+
+            shutdown_timeout:
+                Number(
+                    form.get(
+                        "shutdown_timeout"
+                    )
+                ),
+
+            log_level:
+                String(
+                    form.get("log_level") || "INFO"
+                ),
+
+            persistence_enabled:
+                form.get(
+                    "persistence_enabled"
+                ) === "true"
+        };
+
+        if (!payload.name) {
+            throw new Error(
+                "Runtime name cannot be empty."
+            );
+        }
+
+        if (!payload.environment) {
+            throw new Error(
+                "Environment cannot be empty."
+            );
+        }
+
+        if (
+            !Number.isFinite(
+                payload.shutdown_timeout
+            ) ||
+            payload.shutdown_timeout <= 0
+        ) {
+            throw new Error(
+                "Shutdown timeout must be positive."
+            );
+        }
+
+        await request(
+            API.settings,
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type":
+                        "application/json",
+                    "Accept":
+                        "application/json"
+                },
+                body: JSON.stringify(payload)
+            }
+        );
+
+        showMessage(
+            "Runtime settings saved."
+        );
+    }
+
+    async function refreshCurrentPage(
+        page
+    ) {
+        if (page === "dashboard") {
+            await loadDashboard();
+            return;
+        }
+
+        if (page === "events") {
+            await loadEventsPage();
+            return;
+        }
+
+        if (page === "processes") {
+            await loadProcessesPage();
+            return;
+        }
+
+        if (page === "alerts") {
+            await loadAlertsPage();
+            return;
+        }
+
+        if (page === "incidents") {
+            await loadIncidentsPage();
+            return;
+        }
+
+        if (page === "reports") {
+            await loadReportsPage();
+            return;
+        }
+
+        if (page === "settings") {
+            await loadSettings();
+        }
+    }
+
+    async function navigate(page) {
+        document
+            .querySelectorAll(".nav-item")
+            .forEach(item => {
+                item.classList.toggle(
+                    "active",
+                    item.dataset.page === page
+                );
+            });
+
+        document
+            .querySelectorAll(".page")
+            .forEach(section => {
+                section.classList.toggle(
+                    "active",
+                    section.id ===
+                    `page-${page}`
+                );
+            });
+
+        const title =
+            pageTitles[page] ||
+            pageTitles.dashboard;
+
+        document.getElementById(
+            "pageTitle"
+        ).textContent = title[0];
+
+        document.getElementById(
+            "pageSubtitle"
+        ).textContent = title[1];
+
+        try {
+            showMessage("");
+            await refreshCurrentPage(page);
+        } catch (error) {
+            console.error(error);
+            showMessage(error.message);
+        }
+    }
+
+    async function refreshAll() {
+        try {
+            showMessage("");
+
+            const status =
+                await request(API.status);
+
+            renderStatus(status);
+
+            const active =
+                document.querySelector(
+                    ".nav-item.active"
+                );
+
+            const page =
+                active?.dataset.page ||
+                "dashboard";
+
+            await refreshCurrentPage(page);
+
+        } catch (error) {
+            console.error(error);
+
+            statusDot.style.background =
+                "var(--red)";
+
+            statusText.textContent =
+                "RDRS API unavailable";
+
+            showMessage(
+                error.message
+            );
+        }
+    }
+
+    async function controlRuntime(
+        endpoint,
+        successMessage
+    ) {
+        startBtn.disabled = true;
+        stopBtn.disabled = true;
+
+        try {
+            const data =
+                await request(
+                    endpoint,
+                    {
+                        method: "POST",
+                        headers: {
+                            "Accept":
+                                "application/json"
+                        }
+                    }
+                );
+
+            renderStatus(data);
+
+            showMessage(
+                successMessage
+            );
+
+            await refreshCurrentPage(
+                "dashboard"
+            );
+
+        } catch (error) {
+            console.error(error);
+            showMessage(error.message);
+            await refreshAll();
+        }
+    }
+
+    document
+        .querySelectorAll(".nav-item")
+        .forEach(item => {
+            item.addEventListener(
+                "click",
+                () => navigate(
+                    item.dataset.page
+                )
+            );
+        });
+
+    startBtn.addEventListener(
+        "click",
+        () => controlRuntime(
+            API.start,
+            "RDRS monitoring start requested."
+        )
+    );
+
+    stopBtn.addEventListener(
+        "click",
+        () => controlRuntime(
+            API.stop,
+            "RDRS monitoring stop requested."
+        )
+    );
+
+    refreshBtn.addEventListener(
+        "click",
+        refreshAll
+    );
+
+    document
+        .getElementById("settingsForm")
+        .addEventListener(
+            "submit",
+            async event => {
+                try {
+                    await saveSettings(event);
+                } catch (error) {
+                    console.error(error);
+                    showMessage(
+                        error.message
+                    );
+                }
+            }
+        );
+
+    document
+        .getElementById("loadSettingsBtn")
+        .addEventListener(
+            "click",
+            async () => {
+                try {
+                    await loadSettings();
+                } catch (error) {
+                    console.error(error);
+                    showMessage(
+                        error.message
+                    );
+                }
+            }
+        );
+
+    window.addEventListener(
+        "resize",
+        () => {
+            if (state.dashboard) {
+                renderCharts(
+                    state.dashboard
+                );
+            }
+        }
+    );
+
+    updateControls("STOPPED");
+
+    refreshAll();
+
+    setInterval(
+        refreshAll,
+        5000
+    );
+</script>
+
+</body>
+</html>

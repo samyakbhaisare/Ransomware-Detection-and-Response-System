@@ -1,0 +1,50 @@
+# Build context exclusions for the RDRS image.
+# Keeps the image free of local environment state, caches and evidence bundles.
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Version control
+.git/
+.gitignore
+
+# Python caches / build artefacts
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Coverage and audit output
+htmlcov/
+.coverage
+.coverage.*
+coverage.json
+*_coverage.json
+audit_pytest_run.txt
+
+# Runtime state - mounted as volumes instead of baked in
+data/
+logs/
+e2e_out/
+
+# Local probes / scratch
+ptmp/
+tmp/
+*.tmp
+
+# Editor / OS noise
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Project docs that are not needed at runtime
+reports/
+docs/

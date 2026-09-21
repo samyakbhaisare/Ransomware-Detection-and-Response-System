@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Any
@@ -22,3 +22,4 @@ class HealthRegistry:
         overall = all(item["healthy"] for item in snapshot.values()) if snapshot else True
         snapshot["overall"] = overall
         return snapshot
+

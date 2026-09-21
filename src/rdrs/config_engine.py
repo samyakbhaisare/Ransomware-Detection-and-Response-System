@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Any
@@ -54,3 +54,4 @@ class ConfigEngine:
         engine = cls(monitoring=monitoring, detection=detection, response=response, ai=ai)
         engine.validate()
         return engine
+

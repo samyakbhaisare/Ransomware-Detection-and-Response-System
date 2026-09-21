@@ -1,0 +1,27 @@
+services:
+  rdrs:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rdrs
+    ports:
+      - "8000:8000"
+    volumes:
+      # Runtime state lives on the host, never in the image.
+      - ./data:/app/data
+      - ./logs:/app/logs
+      # The canonical configuration (FSD FR-1). Mounted read-write because
+      # POST /settings persists changes back to this file so they survive a
+      # restart; a read-only mount would make every settings save fail.
+      - ./config.yaml:/app/config.yaml
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3).read()"
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+    restart: unless-stopped

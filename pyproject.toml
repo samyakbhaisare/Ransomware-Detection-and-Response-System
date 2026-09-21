@@ -10,6 +10,8 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
   "PyYAML>=6.0",
+  "fastapi>=0.140.1",
+  "uvicorn>=0.35.0",
 ]
 
 [project.scripts]
@@ -19,6 +21,18 @@ rdrs = "rdrs.cli:main"
 pythonpath = ["src"]
 
 testpaths = ["tests"]
+
+# Disable pytest's temporary-directory housekeeping.
+#
+# By default pytest keeps its ``tmp_path`` runs under the system temp directory
+# and prunes older ones when a session starts. On a locked-down machine that
+# pruning is refused by the deletion guard, so the whole suite becomes
+# unrunnable -- and the failure looks like a test problem when it is really an
+# environment one. ``none`` means pytest never deletes a temporary directory,
+# so the suite runs anywhere without weakening any safety guard. The temporary
+# directories are left on disk; they live under the system temp root and can be
+# cleared by the operator whenever convenient.
+tmp_path_retention_policy = "none"
 
 [tool.setuptools]
 package-dir = {"" = "src"}

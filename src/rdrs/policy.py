@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Any
@@ -40,3 +40,4 @@ class PolicyEngine:
 
     def add_policy(self, policy: Policy) -> None:
         self.policies.append(policy)
+

@@ -1,0 +1,67 @@
+# RDRS configuration.
+#
+# This is the single canonical configuration file, at the path the FSD
+# specifies ("Load configuration from config.yaml" - FSD FR-1) and the Build
+# Guide's project structure shows.
+#
+# It is loaded and validated at start-up, exposed through GET /status, edited
+# through POST /settings, and written back here so changes survive a restart.
+
+runtime:
+  name: rdrs
+  environment: test
+  data_dir: data
+  logs_dir: logs
+  shutdown_timeout: 20.0
+
+  # Folders the file monitor watches (Build Guide Phase 1: the config loader
+  # reads "which folders to watch" from config.yaml).
+  #
+  # Add the folders you want protected here. Relative paths resolve against
+  # this file, so "data" means <project>/data regardless of the working
+  # directory. An empty list means "watch data_dir".
+  #
+  # Keep every folder RDRS writes to excluded from monitoring (see the
+  # monitor excludes in runtime.py) so the detector never observes its own
+  # output.
+  watch_paths:
+    - data
+
+logging:
+  level: INFO
+
+persistence:
+  enabled: false
+  db_path: data\rdrs.db
+
+# Detection thresholds. Compared against the sliding-window counters that the
+# detection engine recomputes over the configured window.
+detection:
+  window_seconds: 60.0
+  modified_files_per_minute: 20.0
+  renames: 10.0
+  extension_changes: 5.0
+  average_entropy: 7.0
+  cpu_percent: 80.0
+
+# Weighted threat score (0-100). Rapid encryption dominates because it is the
+# strongest single indicator of ransomware-like behaviour.
+scoring:
+  weights:
+    rapid_encryption: 40.0
+    mass_rename: 30.0
+    high_entropy: 25.0
+    cpu_spike: 15.0
+    unknown_program: 10.0
+
+# Subsystems registered and health-tracked at start-up.
+subsystems:
+- name: config
+  healthy: true
+  critical: true
+- name: logging
+  healthy: true
+  critical: true
+- name: database
+  healthy: true
+  critical: true
