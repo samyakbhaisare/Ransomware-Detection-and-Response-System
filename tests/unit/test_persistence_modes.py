@@ -143,13 +143,22 @@ def test_disabled_mode_does_not_delete_the_durable_database(work):
 
     size_before = db_file.stat().st_size
 
-    # Now switch to the non-durable mode. The TestClient lifespan owns
-    # start/stop, so the runtime is not started explicitly here.
+    # Now switch to the non-durable mode.
+    #
+    # The runtime must be created with THIS test's temporary configuration
+    # before the TestClient opens. Resetting the singleton and then letting the
+    # lifespan call ``get_runtime()`` would build a runtime from the *default*
+    # configuration -- the project's real config.yaml -- so the assertion below
+    # would be reading the wrong file entirely.
     path = _write_config(work, persistence=False)
     RuntimeManager.reset_singleton()
+    RuntimeManager(config_path=path)
 
     with TestClient(app) as client:
         runtime = RuntimeManager()
+        assert runtime._pending_config_path == path, (
+            "the runtime is not using this test's temporary configuration"
+        )
         assert runtime._database.durable is False, "Disabled must select an in-memory database"
         assert runtime._database.db_path is None, "an in-memory database has no file path"
 
@@ -218,9 +227,20 @@ def test_an_unrelated_setting_change_keeps_history_and_other_config(work):
     path = _write_config(work, persistence=True)
     RuntimeManager.reset_singleton()
 
-    # The TestClient lifespan starts and stops the runtime for us.
+    # The runtime MUST be built from this test's temporary configuration before
+    # the TestClient opens. This test posts to /settings, and /settings writes
+    # the file the runtime was configured with -- so building the runtime from
+    # the default path here would let a test write the project's real
+    # config.yaml.
+    RuntimeManager(config_path=path)
+
     with TestClient(app) as client:
         runtime = RuntimeManager()
+        assert runtime._pending_config_path == path, (
+            "the runtime is not using this test's temporary configuration; "
+            "/settings would write the project's real config.yaml"
+        )
+
         original = runtime._config
         original_thresholds = dict(original.detection_thresholds)
         original_weights = dict(original.scoring_weights)

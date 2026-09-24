@@ -31,7 +31,7 @@ logging:
   level: INFO
 
 persistence:
-  enabled: false
+  enabled: true
   db_path: data\rdrs.db
 
 # Detection thresholds. Compared against the sliding-window counters that the

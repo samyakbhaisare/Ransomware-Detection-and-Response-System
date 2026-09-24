@@ -25,7 +25,12 @@ FSD requirement set (FR-01 … FR-13) and the Hands-On Build Guide phases
 | REST API | FR-10 | Implemented |
 | Live dashboard | FR-11 | Implemented |
 | JSON / CSV reports | FR-12 | Implemented |
-| Automated tests + Docker | FR-13 | Implemented |
+| Automated tests + Docker | FR-13 | Tests implemented; **Docker deployment not verified** |
+
+> FR-13 has two halves. The automated-testing half is implemented and verified.
+> The Docker-deployment half is implemented as configuration but has **never been
+> built or run** — see [Docker verification status](#docker-verification-status).
+> FR-13 is therefore **partially** verified, not complete.
 
 Threat bands: **Normal** 0–40, **Warning** 40–70, **Critical** 70–100.
 
@@ -381,16 +386,17 @@ Verified with fresh evidence unless marked otherwise.
 
 | Area | Status |
 | --- | --- |
-| Backend test suite (`pytest tests`) | **739 passed, 0 failed, 0 skipped** |
-| Front-end harness (`ptmp/dashboard_frontend_harness.mjs`) | **99 passed, 0 failed** |
+| Backend test suite (`pytest tests`) | **794 passed, 0 failed, 0 errors, 0 skipped** |
+| Front-end harness (`ptmp/dashboard_frontend_harness.mjs`) | **115 passed, 0 failed** |
 | Encoding + safety scan (`ptmp/encoding_safety_scan.py`) | **22 passed, 0 failed** |
+| Docker configuration (static, `tests/unit/test_docker_configuration.py`) | **46 passed** — configuration only, not a container run |
 | Live browser verification (real API, no injected data) | **19 passed, 0 failed** |
 | Entropy (FR-3) | normal text **4.397**, random bytes **7.979** |
 | Quarantine (FR-9) | copy-only confirmed — `copy2`; no `unlink`, no `shutil.move` |
 | Persistence across a process restart | events/alerts/incidents/scores all preserved |
 | Monitoring lifecycle (start/stop/start, polling while stopped) | no 500s; 24 concurrent reads all 200 |
 | Report generation (JSON + CSV) | repeated generation and downloads verified |
-| **Docker build/run (Phase 10, FR-13)** | **NOT VERIFIED — Docker daemon unavailable** |
+| **Docker build / container run (Phase 10, FR-13)** | **NOT VERIFIED — Docker daemon will not start** |
 
 ## Design, testing and future improvements
 

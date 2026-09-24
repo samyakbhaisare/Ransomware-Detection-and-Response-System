@@ -15,25 +15,62 @@
             padding: 0;
         }
 
+        /* ------------------------------------------------------------------
+           Design tokens
+
+           A deep charcoal/slate system rather than near-black: the page sits
+           at one elevation and each surface above it is visibly lighter, so
+           the layout reads as layered panels instead of one flat dark field.
+           ------------------------------------------------------------------ */
         :root {
-            --bg: #080c11;
-            --panel: #10161e;
-            --panel-2: #151d27;
-            --border: #27313d;
-            --text: #e6edf3;
-            --muted: #8b98a8;
-            --muted-2: #687584;
-            --green: #7ee787;
+            /* Surfaces, low to high elevation */
+            --bg: #12161c;          /* page */
+            --surface: #171c24;     /* sidebar / top bar */
+            --panel: #1a212b;       /* panels, table headers */
+            --card: #1e2632;        /* cards */
+            --card-hover: #232c3a;
+            --raised: #2a3543;      /* active nav, hovered rows */
+            --input: #141a22;       /* form fields */
+
+            /* Lines */
+            --border: #2b3543;
+            --border-soft: #232c38;
+            --border-strong: #37455a;
+
+            /* Text */
+            --text: #e8eef5;
+            --text-strong: #f5f8fb;
+            --muted: #93a1b2;
+            --muted-2: #6d7b8c;
+
+            /* Status accents, kept restrained */
+            --green: #3fb950;
             --yellow: #d29922;
-            --red: #ff7b72;
-            --blue: #79c0ff;
+            --red: #f85149;
+            --blue: #58a6ff;
+
+            /* Depth */
+            --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+            --shadow: 0 2px 8px rgba(0, 0, 0, 0.32);
+            --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.38);
+            --radius: 10px;
+            --radius-sm: 7px;
         }
 
         body {
             font-family:
+                "Inter",
+                "Segoe UI Variable Text",
+                "Segoe UI",
+                system-ui,
+                -apple-system,
+                "Helvetica Neue",
                 Arial,
-                Helvetica,
                 sans-serif;
+            font-size: 14px;
+            line-height: 1.5;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
             background: var(--bg);
             color: var(--text);
             min-height: 100vh;
@@ -46,7 +83,7 @@
         }
 
         button {
-            border: 1px solid #34404d;
+            border: 1px solid #39465a;
             background: var(--panel-2);
             color: var(--text);
             padding: 9px 14px;
@@ -55,7 +92,7 @@
         }
 
         button:hover:not(:disabled) {
-            background: #202b38;
+            background: #2a3543;
         }
 
         button:disabled {
@@ -66,7 +103,7 @@
         input,
         select {
             width: 100%;
-            background: #0b1118;
+            background: #141a22;
             border: 1px solid var(--border);
             color: var(--text);
             padding: 10px 12px;
@@ -104,13 +141,13 @@
         }
 
         ::-webkit-scrollbar-thumb {
-            background: #2b3745;
+            background: #333f4f;
             border: 2px solid var(--panel);
             border-radius: 8px;
         }
 
         ::-webkit-scrollbar-thumb:hover {
-            background: #3a4859;
+            background: #45536a;
         }
 
         ::-webkit-scrollbar-corner {
@@ -120,14 +157,14 @@
         /* Firefox */
         * {
             scrollbar-width: thin;
-            scrollbar-color: #2b3745 var(--panel);
+            scrollbar-color: #333f4f var(--panel);
         }
 
         /* Number inputs: the spinner is a UA widget, so it needs explicit
            theming to match the field. Kept visible (not hidden) because it is
            the documented way to step the value. */
         input[type="number"] {
-            background-color: #0b1118;
+            background-color: #141a22;
             color: var(--text);
         }
 
@@ -141,11 +178,11 @@
 
         input[type="number"]:hover::-webkit-inner-spin-button,
         input[type="number"]:focus::-webkit-inner-spin-button {
-            background: #1b2532;
+            background: #232c3a;
         }
 
         input[type="number"]::-webkit-inner-spin-button:hover {
-            background: #263241;
+            background: #313d4d;
         }
 
         /* Firefox draws the spinner itself and honours `color-scheme`, so no
@@ -159,7 +196,7 @@
         .sidebar {
             width: 245px;
             flex-shrink: 0;
-            background: #0e141c;
+            background: #171c24;
             border-right: 1px solid var(--border);
             padding: 22px 15px;
         }
@@ -196,14 +233,14 @@
         }
 
         .nav-item:hover:not(:disabled) {
-            background: #151d27;
+            background: #1e2632;
             color: var(--text);
         }
 
         .nav-item.active {
-            background: #1c2632;
-            border-color: #2c3947;
-            color: #fff;
+            background: #2a3543;
+            border-color: #35424f;
+            color: #f5f8fb;
         }
 
         .main {
@@ -329,6 +366,7 @@
         }
 
         .card {
+            box-shadow: var(--shadow-sm);
             background: var(--panel);
             border: 1px solid var(--border);
             border-radius: 10px;
@@ -380,7 +418,7 @@
             align-items: center;
             gap: 6px;
             padding: 4px 9px;
-            border: 1px solid #2f3d4c;
+            border: 1px solid #37455a;
             border-radius: 999px;
             background: var(--panel-2);
             color: var(--text);
@@ -406,7 +444,7 @@
         /* Tells the operator what the dashboard counters mean: whether history
            exists, and whether it is currently being read. */
         .history-state {
-            border: 1px solid #2f3d4c;
+            border: 1px solid #37455a;
             border-left-width: 3px;
             border-radius: 6px;
             background: var(--panel-2);
@@ -492,6 +530,7 @@
         }
 
         .number {
+            font-variant-numeric: tabular-nums;
             font-size: 29px;
             font-weight: 700;
         }
@@ -517,7 +556,7 @@
         td {
             padding: 10px 8px;
             text-align: left;
-            border-bottom: 1px solid #232d38;
+            border-bottom: 1px solid #2a3543;
             white-space: nowrap;
         }
 
@@ -540,7 +579,7 @@
         }
 
         td {
-            color: #d8e0e8;
+            color: #dbe3ec;
         }
 
         .empty {
@@ -553,8 +592,8 @@
             width: 100%;
             height: 250px;
             display: block;
-            background: #0b1118;
-            border: 1px solid #202a35;
+            background: #141a22;
+            border: 1px solid #2a3543;
             border-radius: 8px;
         }
 
@@ -569,8 +608,8 @@
             justify-content: space-between;
             gap: 12px;
             padding: 10px;
-            background: #0b1118;
-            border: 1px solid #202a35;
+            background: #141a22;
+            border: 1px solid #2a3543;
             border-radius: 7px;
         }
 
@@ -613,7 +652,7 @@
             justify-content: space-between;
             gap: 15px;
             padding: 12px;
-            border-bottom: 1px solid #232d38;
+            border-bottom: 1px solid #2a3543;
         }
 
         .report-info {
