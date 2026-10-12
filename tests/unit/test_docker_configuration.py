@@ -124,6 +124,12 @@ def test_dockerfile_healthcheck_validates_the_response(dockerfile):
     )
 
 
+def test_dockerfile_healthcheck_requires_runtime_healthy_true(dockerfile):
+    health_block = dockerfile[dockerfile.index("HEALTHCHECK"):]
+    assert "json.load" in health_block
+    assert "data.get('healthy') is True" in health_block
+
+
 # --------------------------------------------------------------------------
 # docker-compose.yml — structure
 # --------------------------------------------------------------------------
@@ -142,6 +148,11 @@ def test_compose_builds_from_the_local_dockerfile(compose):
 
 def test_compose_maps_the_application_port(compose):
     assert '"8000:8000"' in compose or "8000:8000" in compose
+
+
+def test_compose_publishes_only_on_loopback(compose):
+    """The default local defensive deployment must not bind every host NIC."""
+    assert '"127.0.0.1:8000:8000"' in compose
 
 
 def test_compose_mounts_the_data_directory(compose):
@@ -168,6 +179,14 @@ def test_compose_has_a_healthcheck_on_the_real_endpoint(compose):
 
 def test_compose_healthcheck_validates_the_status(compose):
     assert "sys.exit" in compose or "status" in compose
+
+
+def test_compose_healthcheck_requires_runtime_healthy_true(compose):
+    code = "\n".join(
+        line for line in compose.splitlines() if not line.strip().startswith("#")
+    )
+    assert "json.load(r)" in code
+    assert "data.get('healthy') is True" in code
 
 
 def test_compose_sets_a_restart_policy(compose):

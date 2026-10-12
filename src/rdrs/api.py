@@ -2,20 +2,24 @@ from __future__ import annotations
 
 import csv
 import json
+from copy import deepcopy
 from datetime import datetime, timezone
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
+import uuid
 
-from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi import FastAPI, HTTPException, Query, Request, Response
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from .config import ConfigConflictError
 from .dashboard_data import DashboardData
+from .logging import initialize_logging
 from .monitoring import DirectoryMonitor
 from .runtime import RuntimeManager, RuntimeStatus
 from .storage import DatabaseManager
+from .public_redaction import redact
 
 
 runtime_manager = RuntimeManager()
@@ -166,7 +170,11 @@ def report_directory(runtime: RuntimeManager) -> Path:
     data_dir: Any = None
 
     if config is not None:
-        data_dir = getattr(config, "data_dir", None)
+        data_dir = getattr(
+            config,
+            "resolved_data_dir",
+            getattr(config, "data_dir", None),
+        )
 
     if data_dir is None:
         data_dir = getattr(
@@ -178,7 +186,13 @@ def report_directory(runtime: RuntimeManager) -> Path:
     if data_dir is None:
         data_dir = Path("data")
 
-    reports_dir = Path(data_dir) / "reports"
+    data_root = Path(data_dir).resolve()
+    reports_dir = (data_root / "reports").resolve()
+
+    if not _is_path_within(reports_dir, data_root):
+        raise RuntimeError(
+            "The reports directory must remain inside the configured data directory."
+        )
 
     reports_dir.mkdir(
         parents=True,
@@ -186,6 +200,14 @@ def report_directory(runtime: RuntimeManager) -> Path:
     )
 
     return reports_dir
+
+
+def _is_path_within(path: Path, directory: Path) -> bool:
+    """Return whether a resolved path is contained beneath a resolved root."""
+    try:
+        return Path(path).resolve().is_relative_to(Path(directory).resolve())
+    except (OSError, RuntimeError):
+        return False
 
 
 def utc_timestamp() -> str:
@@ -201,6 +223,62 @@ def _first_not_none(*values: Any) -> Any:
             return value
 
     return None
+
+
+def _decode_list_cursor(
+    value: str | None,
+) -> tuple[datetime, int] | None:
+    """Decode the additive timestamp/id cursor used by paged list routes."""
+    if value is None:
+        return None
+
+    try:
+        timestamp_text, id_text = value.rsplit("|", 1)
+        timestamp_text = (
+            timestamp_text[:-1] + "+00:00"
+            if timestamp_text.endswith("Z")
+            else timestamp_text
+        )
+        timestamp = datetime.fromisoformat(timestamp_text)
+        record_id = int(id_text)
+        if record_id < 1:
+            raise ValueError("cursor id must be positive")
+        if timestamp.tzinfo is None:
+            timestamp = timestamp.replace(tzinfo=timezone.utc)
+        return timestamp.astimezone(timezone.utc), record_id
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid pagination cursor.",
+        ) from exc
+
+
+def _paginate_rows(
+    response: Response,
+    rows: list[dict[str, Any]],
+    *,
+    limit: int,
+    timestamp_key: str,
+    total_count: int | None = None,
+) -> list[dict[str, Any]]:
+    """Keep list bodies backward-compatible while exposing keyset metadata."""
+    page = rows[:limit]
+    has_more = len(rows) > limit
+    response.headers["X-Has-More"] = "true" if has_more else "false"
+
+    if total_count is not None:
+        response.headers["X-Total-Count"] = str(total_count)
+
+    if has_more and page:
+        last = page[-1]
+        timestamp = last.get(timestamp_key)
+        record_id = last.get("id")
+        if timestamp is not None and record_id is not None:
+            response.headers["X-Next-Cursor"] = (
+                f"{timestamp}|{int(record_id)}"
+            )
+
+    return page
 
 
 #: Placeholder values written into the dedicated incident columns by the
@@ -326,12 +404,31 @@ def build_incident_report(
     incident_events: list[dict[str, Any]] = []
 
     if incident_id is not None:
-        incident_events = (
-            database.list_events_for_incident(
+        event_cursor: tuple[datetime, int] | None = None
+        while True:
+            event_page = database.list_events_for_incident(
                 incident_id,
                 limit=1000,
+                after=event_cursor,
             )
-        )
+            incident_events.extend(event_page)
+
+            if len(event_page) < 1000:
+                break
+
+            last_event = event_page[-1]
+            timestamp = last_event.get("created_at")
+            event_id = last_event.get("id")
+            if timestamp is None or event_id is None:
+                break
+
+            timestamp_text = str(timestamp)
+            if timestamp_text.endswith("Z"):
+                timestamp_text = timestamp_text[:-1] + "+00:00"
+            event_time = datetime.fromisoformat(timestamp_text)
+            if event_time.tzinfo is None:
+                event_time = event_time.replace(tzinfo=timezone.utc)
+            event_cursor = (event_time, int(event_id))
 
     # --- score / level ------------------------------------------------------
     score = _resolve_score(incident, evidence)
@@ -372,6 +469,10 @@ def build_incident_report(
 
     if not suspect_process:
         suspect_process = None
+
+    suspect_process_attribution = evidence.get(
+        "suspect_process_attribution"
+    )
 
     # --- alerts / scores referenced by this incident ------------------------
     alerts = database.list_alerts(limit=1000)
@@ -420,6 +521,7 @@ def build_incident_report(
         score=float(score),
         signals=evidence.get("signals") or {},
         suspect_process=suspect_process,
+        suspect_process_attribution=suspect_process_attribution,
         affected_files=affected_files,
         simulation_mode=evidence.get(
             "simulation_mode",
@@ -453,6 +555,9 @@ def build_incident_report(
             affected_files
         ),
         "suspect_process": suspect_process,
+        "suspect_process_attribution": (
+            suspect_process_attribution
+        ),
         "evidence": evidence,
         "alerts": alerts,
         "scores": scores,
@@ -465,6 +570,7 @@ def _build_recommendations(
     score: float,
     signals: dict[str, Any],
     suspect_process: Any,
+    suspect_process_attribution: str | None = None,
     affected_files: list[Any],
     simulation_mode: bool,
 ) -> list[str]:
@@ -519,7 +625,12 @@ def _build_recommendations(
             else suspect_process
         )
         recommendations.append(
-            f"Investigate the suspect process: {name}."
+            f"Review the recorded process observation: {name}. "
+            + (
+                f"Attribution: {suspect_process_attribution}."
+                if suspect_process_attribution
+                else "Its causal relationship to file activity is not recorded."
+            )
         )
 
     recommendations.append(
@@ -557,7 +668,7 @@ def write_json_report(
     destination: Path,
 ) -> None:
     with destination.open(
-        "w",
+        "x",
         encoding="utf-8",
     ) as handle:
         json.dump(
@@ -655,6 +766,35 @@ def write_csv_report(
             }
         )
 
+    suspect_process = report.get("suspect_process")
+    if suspect_process:
+        process_data = (
+            suspect_process
+            if isinstance(suspect_process, dict)
+            else {"name": str(suspect_process)}
+        )
+        rows.append(
+            {
+                "record_type": "suspect_process",
+                "timestamp": incident.get("created_at"),
+                "incident_id": incident.get("id"),
+                "action": "",
+                "path": process_data.get("executable_path", ""),
+                "score": report["threat_score"],
+                "level": incident.get("level"),
+                "details": json.dumps(
+                    {
+                        "process": process_data,
+                        "attribution": report.get(
+                            "suspect_process_attribution"
+                        ),
+                    },
+                    ensure_ascii=False,
+                    default=str,
+                ),
+            }
+        )
+
     for recommendation in report[
         "recommendations"
     ]:
@@ -689,7 +829,7 @@ def write_csv_report(
     ]
 
     with destination.open(
-        "w",
+        "x",
         newline="",
         encoding="utf-8",
     ) as handle:
@@ -755,6 +895,7 @@ def prune_reports(
             (
                 path
                 for path in directory.glob(f"incident_{incident_id}_*")
+                if not path.is_symlink()
                 if path.is_file()
                 and path.suffix in {".json", ".csv"}
             ),
@@ -850,9 +991,96 @@ def health() -> dict[str, Any]:
     return get_runtime().health_status()
 
 
+@app.middleware("http")
+async def redact_public_reads(request: Request, call_next):
+    if request.headers.get("x-rdrs-public") == "1" and request.method not in {"GET", "HEAD"}:
+        return Response('{"detail":"Public access is read-only"}', status_code=403, media_type="application/json")
+    response = await call_next(request)
+    if request.headers.get("x-rdrs-public") != "1":
+        return response
+    if request.url.path in {"/", "/health", "/public-summary"}:
+        return response
+    if request.url.path.startswith("/reports/") and response.status_code == 200:
+        return response
+    if response.headers.get("content-type", "").startswith("application/json"):
+        body = b"".join([chunk async for chunk in response.body_iterator])
+        payload = redact(json.loads(body)) if response.status_code == 200 else {"detail": "Read request unavailable"}
+        headers = {k: v for k, v in response.headers.items() if k.lower() not in {"content-length", "content-type"}}
+        headers["Cache-Control"] = "no-store"
+        return Response(json.dumps(payload), status_code=response.status_code, headers=headers, media_type="application/json")
+    return response
+
+
 @app.get("/status")
 def status() -> dict[str, Any]:
     return get_runtime().status()
+
+
+@app.get("/public-summary")
+def public_summary(request: Request) -> dict[str, Any]:
+    """Allowlisted aggregates only; never serialize historical row details."""
+    from sqlalchemy import text
+
+    runtime = get_runtime()
+    database = get_database()
+    groups = {}
+    allowed = {
+        "events": ("action", {"created", "modified", "deleted", "moved", "renamed"}),
+        "alerts": ("severity", {"NORMAL", "WARNING", "CRITICAL"}),
+        "incidents": ("severity", {"NORMAL", "WARNING", "CRITICAL"}),
+    }
+    with database.engine.connect() as connection:
+        for table, (column, labels) in allowed.items():
+            totals = {}
+            for label, count in connection.execute(
+                text(f"SELECT {column}, count(*) FROM {table} GROUP BY {column}")
+            ):
+                label = label if label in labels else "Other"
+                totals[label] = totals.get(label, 0) + count
+            groups[table] = totals
+        latest_capture = connection.execute(
+            text("SELECT captured_at FROM processes ORDER BY captured_at DESC, id DESC LIMIT 1")
+        ).scalar()
+        latest_score = connection.execute(
+            text("SELECT score, level, created_at FROM scores ORDER BY created_at DESC, id DESC LIMIT 1")
+        ).first()
+        # Chart inputs contain only numerical observations and timestamps.
+        cpu = connection.execute(text(
+            "SELECT cpu_percent FROM processes ORDER BY captured_at DESC, id DESC LIMIT 60"
+        )).scalars().all()
+        entropy = []
+        activity = {}
+        for timestamp, metadata in connection.execute(text(
+            "SELECT created_at, metadata_json FROM events ORDER BY created_at DESC, id DESC LIMIT 50"
+        )):
+            second = str(timestamp)[:19]
+            activity[second] = activity.get(second, 0) + 1
+            try:
+                value = json.loads(metadata).get("entropy")
+                if isinstance(value, (int, float)) and 0 <= value <= 8:
+                    entropy.append(float(value))
+            except (ValueError, TypeError, AttributeError):
+                pass
+    reports = report_directory(runtime)
+    return {
+        # The gateway forces this header. It cannot grant access to private APIs.
+        "access": "public" if request.headers.get("x-rdrs-public") == "1" else "private",
+        "health": runtime.health_status(),
+        "summary": DashboardData(database).summary(),
+        "groups": groups,
+        "latest_capture": str(latest_capture) if latest_capture is not None else None,
+        "score": {
+            "score": float(latest_score[0]),
+            "level": latest_score[1] if latest_score[1] in {"NORMAL", "WARNING", "CRITICAL"} else "Restricted",
+            "created_at": str(latest_score[2]).replace(" ", "T") + "Z",
+        } if latest_score else None,
+        "telemetry": {"cpu": cpu, "entropy": list(reversed(entropy))},
+        "activity": [{"time": stamp.replace(" ", "T") + "Z", "count": count} for stamp, count in sorted(activity.items())],
+        "report_count": sum(
+            1 for path in reports.glob("incident_*.*")
+            if path.suffix in {".json", ".csv"} and path.is_file() and not path.is_symlink()
+        ),
+    }
 
 
 @app.post("/monitor/start")
@@ -889,63 +1117,125 @@ def stop_monitoring(
 
 @app.get("/events")
 def events(
+    response: Response,
     limit: int = Query(
         100,
         ge=1,
         le=1000,
     ),
+    cursor: str | None = None,
+    include_total: bool = False,
 ) -> list[dict[str, Any]]:
     database = get_database()
+    decoded_cursor = _decode_list_cursor(cursor)
+    rows = database.list_events(
+        limit=limit + 1,
+        cursor=decoded_cursor,
+    )
 
-    return database.list_events(
-        limit=limit
+    return _paginate_rows(
+        response,
+        rows,
+        limit=limit,
+        timestamp_key="created_at",
+        total_count=(
+            database.count_records("events")
+            if include_total
+            else None
+        ),
     )
 
 
 @app.get("/processes")
 def processes(
+    response: Response,
     limit: int = Query(
         100,
         ge=1,
         le=1000,
     ),
+    cursor: str | None = None,
+    include_total: bool = False,
 ) -> list[dict[str, Any]]:
     database = get_database()
+    decoded_cursor = _decode_list_cursor(cursor)
+    rows = DashboardData(database).recent_processes(
+        limit=limit + 1,
+        cursor=decoded_cursor,
+    )
 
-    return DashboardData(
-        database
-    ).recent_processes(
-        limit=limit
+    return _paginate_rows(
+        response,
+        rows,
+        limit=limit,
+        timestamp_key="captured_at",
+        total_count=(
+            database.count_records("processes")
+            if include_total
+            else None
+        ),
     )
 
 
 @app.get("/alerts")
 def alerts(
+    response: Response,
     limit: int = Query(
         100,
         ge=1,
         le=1000,
     ),
+    cursor: str | None = None,
+    include_total: bool = False,
 ) -> list[dict[str, Any]]:
     database = get_database()
+    decoded_cursor = _decode_list_cursor(cursor)
+    rows = database.list_alerts(
+        limit=limit + 1,
+        cursor=decoded_cursor,
+    )
 
-    return database.list_alerts(
-        limit=limit
+    return _paginate_rows(
+        response,
+        rows,
+        limit=limit,
+        timestamp_key="created_at",
+        total_count=(
+            database.count_records("alerts")
+            if include_total
+            else None
+        ),
     )
 
 
 @app.get("/incidents")
 def incidents(
+    response: Response,
     limit: int = Query(
         100,
         ge=1,
         le=1000,
     ),
+    cursor: str | None = None,
+    include_total: bool = False,
 ) -> list[dict[str, Any]]:
     database = get_database()
+    decoded_cursor = _decode_list_cursor(cursor)
+    rows = database.list_incidents(
+        limit=limit + 1,
+        cursor=decoded_cursor,
+    )
 
-    return database.list_incidents(
-        limit=limit
+    return _paginate_rows(
+        response,
+        rows,
+        limit=limit,
+        timestamp_key="created_at",
+        total_count=(
+            database.count_records("incidents")
+            if include_total
+            else None
+        ),
     )
 
 
@@ -1005,18 +1295,34 @@ def scan(
 
 @app.get("/reports")
 def reports(
+    response: Response,
     limit: int = Query(
         100,
         ge=1,
         le=1000,
     ),
+    cursor: str | None = None,
+    include_total: bool = False,
 ) -> dict[str, Any]:
     database = get_database()
+    decoded_cursor = _decode_list_cursor(cursor)
 
-    incidents_data = (
+    incident_rows = (
         database.list_incidents(
-            limit=limit
+            limit=limit + 1,
+            cursor=decoded_cursor,
         )
+    )
+    incidents_data = _paginate_rows(
+        response,
+        incident_rows,
+        limit=limit,
+        timestamp_key="created_at",
+        total_count=(
+            database.count_records("incidents")
+            if include_total
+            else None
+        ),
     )
 
     return {
@@ -1038,21 +1344,7 @@ def generate_report(
     runtime = get_runtime()
     database = get_database()
 
-    incidents_data = (
-        database.list_incidents(
-            limit=1000
-        )
-    )
-
-    incident = next(
-        (
-            item
-            for item in incidents_data
-            if item.get("id")
-            == incident_id
-        ),
-        None,
-    )
+    incident = database.get_incident(incident_id)
 
     if incident is None:
         raise HTTPException(
@@ -1075,11 +1367,11 @@ def generate_report(
     timestamp = datetime.now(
         timezone.utc
     ).strftime(
-        "%Y%m%dT%H%M%SZ"
+        "%Y%m%dT%H%M%S%fZ"
     )
 
     filename = (
-        f"incident_{incident_id}_{timestamp}"
+        f"incident_{incident_id}_{timestamp}_{uuid.uuid4().hex}"
     )
 
     if format == "json":
@@ -1118,6 +1410,7 @@ def generate_report(
 
 @app.get("/reports/{incident_id}/{format}")
 def download_report(
+    request: Request,
     incident_id: int,
     format: str,
 ) -> FileResponse:
@@ -1138,8 +1431,14 @@ def download_report(
     )
 
     matches = sorted(
-        destination_dir.glob(
-            f"incident_{incident_id}_*.{format}"
+        (
+            path
+            for path in destination_dir.glob(
+                f"incident_{incident_id}_*.{format}"
+            )
+            if not path.is_symlink()
+            and path.is_file()
+            and _is_path_within(path, destination_dir)
         ),
         reverse=True,
     )
@@ -1154,6 +1453,34 @@ def download_report(
         )
 
     media_type = _report_media_type(format)
+
+    if request.headers.get("x-rdrs-public") == "1":
+        # Read the already generated file; never regenerate or write evidence.
+        import io
+        if format == "json":
+            body = json.dumps(redact(json.loads(matches[0].read_text(encoding="utf-8"))), ensure_ascii=False)
+        else:
+            output = io.StringIO(newline="")
+            with matches[0].open(encoding="utf-8-sig", newline="") as source:
+                reader = csv.DictReader(source)
+                writer = csv.DictWriter(output, fieldnames=reader.fieldnames)
+                writer.writeheader()
+                for row in reader:
+                    safe = {}
+                    for field, value in row.items():
+                        if field in {"record_type", "action", "level"}:
+                            safe[field] = value if value in {"incident", "event", "affected_file", "suspect_process", "recommendation", "created", "modified", "deleted", "renamed", "moved", "NORMAL", "WARNING", "CRITICAL"} else "Redacted"
+                        elif field in {"score", "incident_id"}:
+                            try: safe[field] = float(value) if field == "score" else int(value)
+                            except ValueError: safe[field] = ""
+                        elif field == "details":
+                            try: safe[field] = json.dumps(redact(json.loads(value)))
+                            except (ValueError, TypeError): safe[field] = "Identifying text redacted" if value else ""
+                        else:
+                            safe[field] = redact(value, field)
+                    writer.writerow(safe)
+            body = output.getvalue()
+        return Response(body, media_type=media_type, headers={"Cache-Control": "no-store", "Content-Disposition": f'attachment; filename="incident_{incident_id}_redacted.{format}"'})
 
     return FileResponse(
         matches[0],
@@ -1186,7 +1513,7 @@ def update_settings(
             ),
         )
 
-    config = runtime._config
+    current_config = runtime._config
 
     # An empty payload (``{}``) asks for no change at all. Saving anyway used to
     # rewrite config.yaml -- dropping watch_paths and every comment -- so the
@@ -1195,7 +1522,7 @@ def update_settings(
     # This is checked before the state guard below: reading the current settings
     # is always allowed, including while monitoring runs.
     if not settings.model_dump(exclude_none=True):
-        return config.to_dict()
+        return current_config.to_dict()
 
     # Settings are read-only while monitoring runs.
     #
@@ -1217,6 +1544,10 @@ def update_settings(
                 "Stop monitoring and try again."
             ),
         )
+
+    # Validate and persist a detached candidate. A rejected multi-field
+    # request or stale-file conflict must not partially alter live memory.
+    config = deepcopy(current_config)
 
     if settings.name is not None:
         name = settings.name.strip()
@@ -1332,9 +1663,15 @@ def update_settings(
             raise HTTPException(
                 status_code=500,
                 detail=(
-                    "Settings applied in memory but could "
-                    f"not be persisted: {exc}"
+                    "Settings could not be persisted; no change was applied: "
+                    f"{exc}"
                 ),
             ) from exc
+
+    runtime._config = config
+    runtime.logger = initialize_logging(
+        "rdrs",
+        level=config.log_level,
+    )
 
     return config.to_dict()

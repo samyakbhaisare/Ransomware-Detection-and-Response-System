@@ -185,6 +185,8 @@ def test_json_report_contains_every_required_section(client, tmp_path):
     # 4. the suspect process
     assert report["suspect_process"] is not None
     assert report["suspect_process"].get("name")
+    assert "heuristic" in report["suspect_process_attribution"].lower()
+    assert "not causally attributed" in report["suspect_process_attribution"].lower()
 
     # 5. recommendations
     assert report["recommendations"]
@@ -256,6 +258,14 @@ def test_csv_report_carries_the_incident_summary(client, tmp_path):
 
     # The CSV must carry the incident summary, not only raw events.
     assert record_types & {"incident", "summary"}, record_types
+    assert "suspect_process" in record_types, record_types
+
+    process_row = next(
+        row for row in rows if row["record_type"] == "suspect_process"
+    )
+    process_details = json.loads(process_row["details"])
+    assert process_details["process"]["name"]
+    assert "causal" in process_details["attribution"]
 
 
 # --------------------------------------------------------------------------

@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import csv
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -191,6 +192,49 @@ def test_dashboard_root_serves_the_web_app(api_env):
     assert len(response.text) > 0
 
 
+def test_public_summary_allowlists_aggregates_without_private_evidence(api_env):
+    client, database, _work = api_env
+    secret = "C:/Users/private-user/secret-command.exe"
+    _seed_critical_incident(database, affected=[secret], suspect_name=secret)
+    database.record_file_event({"path": secret, "action": secret})
+    database.record_alert(secret, secret, {"command_line": secret})
+    response = client.get("/public-summary", headers={"X-RDRS-Public": "1"})
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["access"] == "public"
+    assert payload["summary"]["event_count"] == 2
+    assert payload["summary"]["incident_count"] == 1
+    assert payload["groups"]["events"] == {"modified": 1, "Other": 1}
+    assert payload["groups"]["alerts"] == {"Other": 1}
+    assert secret not in response.text
+    assert set(payload) == {"access", "health", "summary", "groups", "latest_capture", "report_count", "score", "telemetry", "activity"}
+    assert set(payload["telemetry"]) == {"cpu", "entropy"}
+    assert all(set(item) == {"time", "count"} for item in payload["activity"])
+    assert client.get("/public-summary").json()["access"] == "private"
+    assert secret in client.get("/incidents").text
+
+
+def test_public_read_routes_preserve_records_and_redact_report_downloads(api_env):
+    client, database, _work = api_env
+    secret = "C:/Users/private-user/private.docx"
+    ident, _ = _seed_critical_incident(database, affected=[secret])
+    client.post(f"/reports/generate?incident_id={ident}&format=json")
+    client.post(f"/reports/generate?incident_id={ident}&format=csv")
+    header = {"X-RDRS-Public": "1"}
+    assert client.post("/monitor/stop", headers=header).status_code == 403
+    assert client.post(f"/reports/generate?incident_id={ident}&format=json", headers=header).status_code == 403
+    for path in ("/status", "/dashboard-data", "/events?include_total=true", "/incidents", "/reports", f"/reports/{ident}/json", f"/reports/{ident}/csv"):
+        response = client.get(path, headers=header)
+        assert response.status_code == 200, path
+        assert secret not in response.text and "encryptor.exe" not in response.text, path
+    public = client.get("/incidents", headers=header).json()[0]
+    assert public["id"] == ident
+    assert public["affected_files"] and public["threat_score"] == 70
+    timeline = client.get(f"/reports/{ident}/json", headers=header).json()["timeline"]
+    assert len(timeline) == 1 and timeline[0]["path"] == public["affected_files"][0]
+    assert secret in client.get(f"/reports/{ident}/json").text
+
+
 def test_incidents_endpoint_returns_persisted_incidents(api_env):
     client, database, _work = api_env
 
@@ -246,6 +290,75 @@ def test_processes_endpoint_returns_persisted_telemetry(api_env):
     assert payload[0]["pid"] == 31337
     assert payload[0]["name"] == "worker.exe"
     assert payload[0]["cpu_percent"] == pytest.approx(91.5)
+
+
+def test_events_endpoint_supports_cursor_pages_and_total(api_env):
+    client, database, _work = api_env
+    timestamp = datetime(2026, 10, 4, 12, 0, tzinfo=timezone.utc)
+    ids = [
+        database.record_file_event(
+            {
+                "path": f"C:/sandbox/page_{index}.txt",
+                "action": "modified",
+                "timestamp": timestamp,
+            }
+        )
+        for index in range(3)
+    ]
+
+    first = client.get(
+        "/events",
+        params={"limit": 2, "include_total": "true"},
+    )
+
+    assert first.status_code == 200
+    assert first.headers["x-total-count"] == "3"
+    assert first.headers["x-has-more"] == "true"
+    assert len(first.json()) == 2
+    assert [row["id"] for row in first.json()] == [ids[2], ids[1]]
+
+    cursor = first.headers["x-next-cursor"]
+    second = client.get(
+        "/events",
+        params={"limit": 2, "cursor": cursor},
+    )
+
+    assert second.status_code == 200
+    assert second.headers["x-has-more"] == "false"
+    assert [row["id"] for row in second.json()] == [ids[0]]
+
+    empty = client.get(
+        "/events",
+        params={
+            "limit": 2,
+            "cursor": "1970-01-01T00:00:00+00:00|1",
+            "include_total": "true",
+        },
+    )
+
+    assert empty.status_code == 200
+    assert empty.json() == []
+    assert empty.headers["x-total-count"] == "3"
+    assert empty.headers["x-has-more"] == "false"
+
+
+def test_processes_endpoint_supports_cursor_pages(api_env):
+    client, database, _work = api_env
+    for pid in (101, 202, 303):
+        database.record_process(
+            ProcessTelemetry(pid=pid, name=f"p{pid}.exe")
+        )
+
+    first = client.get("/processes", params={"limit": 2})
+    assert first.headers["x-has-more"] == "true"
+    cursor = first.headers["x-next-cursor"]
+
+    second = client.get(
+        "/processes",
+        params={"limit": 2, "cursor": cursor},
+    )
+    assert second.headers["x-has-more"] == "false"
+    assert [row["pid"] for row in first.json() + second.json()] == [303, 202, 101]
 
 
 def test_dashboard_data_contract_is_complete(api_env):
@@ -419,6 +532,7 @@ def test_generate_report_writes_json_with_incident_scoped_content(api_env):
     assert report["threat_level"] == "CRITICAL"
 
     assert report["suspect_process"]["name"] == "encryptor.exe"
+    assert report["suspect_process_attribution"] is None
     assert report["affected_file_count"] == 2
     assert [row["path"] for row in report["timeline"]] == [
         "C:/sandbox/report.docx",
@@ -471,6 +585,7 @@ def test_generate_report_writes_csv_with_all_record_types(api_env):
         "incident",
         "event",
         "affected_file",
+        "suspect_process",
         "recommendation",
     }
 
@@ -492,10 +607,46 @@ def test_generate_report_writes_csv_with_all_record_types(api_env):
 
     assert len(file_rows) == 2
 
+    process_row = next(
+        row for row in rows if row["record_type"] == "suspect_process"
+    )
+    process_details = json.loads(process_row["details"])
+    assert process_details["process"]["name"] == "encryptor.exe"
+    assert process_details["process"]["pid"] == 4242
+    assert process_details["attribution"] is None
+
     assert any(
         row["record_type"] == "recommendation"
         for row in rows
     )
+
+
+def test_report_names_do_not_collide_within_one_timestamp_second(
+    api_env,
+    monkeypatch,
+):
+    client, database, work = api_env
+    incident_id, _ = _seed_critical_incident(database)
+
+    class FixedDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return cls(2026, 10, 4, 12, 34, 56, 123456, tzinfo=tz)
+
+    monkeypatch.setattr("rdrs.api.datetime", FixedDateTime)
+
+    paths = []
+    for _ in range(2):
+        response = client.post(
+            "/reports/generate",
+            params={"incident_id": incident_id, "format": "json"},
+        )
+        assert response.status_code == 200
+        paths.append(Path(response.json()["path"]))
+
+    assert paths[0] != paths[1]
+    assert all(path.is_file() for path in paths)
+    assert paths[0].parent == work / "data" / "reports"
 
 
 def test_report_timeline_is_scoped_to_one_incident(api_env):
@@ -794,11 +945,61 @@ def test_report_directory_never_receives_none(api_env):
 
         resolved = report_directory(runtime)
 
-        assert resolved == Path("data") / "reports"
+        assert resolved == (Path("data") / "reports").resolve()
         assert resolved.is_dir()
     finally:
         runtime._config = saved_config  # noqa: SLF001
         runtime._pending_data_dir = saved_pending  # noqa: SLF001
+
+
+def test_report_directory_rejects_a_symlink_escape(tmp_path):
+    from types import SimpleNamespace
+
+    from rdrs.api import _is_path_within, report_directory
+
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+
+    try:
+        (data_dir / "reports").symlink_to(outside, target_is_directory=True)
+    except OSError:
+        # Windows may deny symlink creation without Developer Mode. The same
+        # containment check used by report_directory remains testable directly.
+        assert not _is_path_within(outside, data_dir)
+        return
+
+    runtime = SimpleNamespace(
+        _config=None,
+        _pending_data_dir=data_dir,
+    )
+
+    with pytest.raises(RuntimeError, match="inside the configured data directory"):
+        report_directory(runtime)
+
+
+def test_download_report_does_not_follow_report_symlinks(api_env):
+    from rdrs.api import _is_path_within
+
+    client, database, work = api_env
+    incident_id, _ = _seed_critical_incident(database)
+    reports_dir = work / "data" / "reports"
+    reports_dir.mkdir()
+    external_report = work / "outside.json"
+    external_report.write_text('{"private": true}', encoding="utf-8")
+    link = reports_dir / f"incident_{incident_id}_20300101T000000Z.json"
+
+    try:
+        link.symlink_to(external_report)
+    except OSError:
+        assert not _is_path_within(external_report, reports_dir)
+        return
+
+    response = client.get(f"/reports/{incident_id}/json")
+
+    assert response.status_code == 404
+    assert "private" not in response.text
 
 
 def test_generate_report_works_on_a_cold_runtime(tmp_path, monkeypatch):

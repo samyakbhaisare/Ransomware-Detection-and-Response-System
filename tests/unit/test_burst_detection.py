@@ -387,6 +387,33 @@ def test_configurable_thresholds_are_applied(
     assert result.high_entropy is True
 
 
+@pytest.mark.parametrize(
+    ("setting", "value"),
+    [
+        ("window_seconds", float("nan")),
+        ("modified_files_per_minute", float("inf")),
+        ("renames", float("-inf")),
+        ("extension_changes", float("nan")),
+        ("average_entropy", float("inf")),
+        ("cpu_percent", float("nan")),
+    ],
+)
+def test_non_finite_detection_thresholds_are_rejected(setting, value):
+    with pytest.raises(ValueError, match="finite"):
+        BurstDetectionEngine(thresholds={setting: value})
+
+
+@pytest.mark.parametrize(
+    "value",
+    [float("nan"), float("inf"), float("-inf")],
+)
+def test_non_finite_scoring_weights_are_rejected(value):
+    with pytest.raises(ValueError, match="finite"):
+        BurstDetectionEngine(
+            scoring_weights={"rapid_encryption": value}
+        )
+
+
 def test_custom_scoring_weights_are_used(
     clock,
 ):

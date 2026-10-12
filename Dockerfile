@@ -46,12 +46,13 @@ USER rdrs
 
 EXPOSE 8000
 
-# Real readiness probe: it calls the application's own /health endpoint and
-# fails on a non-2xx response. It does not report a hardcoded status.
+# Real readiness probe: it calls /health and checks the runtime's JSON health
+# value as well as the HTTP response. It does not report a hardcoded status.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-    CMD python -c "import sys, urllib.request; \
+    CMD python -c "import json, sys, urllib.request; \
 r = urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3); \
-sys.exit(0 if r.status == 200 else 1)" || exit 1
+data = json.load(r); \
+sys.exit(0 if r.status == 200 and data.get('healthy') is True else 1)" || exit 1
 
 # The real entrypoint: uvicorn serving the FastAPI app defined in rdrs.api.
 # 0.0.0.0 is required so the port is reachable from outside the container.

@@ -1,5 +1,6 @@
 ﻿from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from enum import Enum
 from typing import Mapping
@@ -13,21 +14,44 @@ class ThreatLevel(str, Enum):
 
 @dataclass(frozen=True)
 class ThreatScore:
-    rapid_encryption: int = 0
-    mass_rename: int = 0
-    high_entropy: int = 0
-    cpu_spike: int = 0
-    unknown_program: int = 0
+    rapid_encryption: float = 0.0
+    mass_rename: float = 0.0
+    high_entropy: float = 0.0
+    cpu_spike: float = 0.0
+    unknown_program: float = 0.0
+
+    def __post_init__(self) -> None:
+        for name in (
+            "rapid_encryption",
+            "mass_rename",
+            "high_entropy",
+            "cpu_spike",
+            "unknown_program",
+        ):
+            value = getattr(self, name)
+            if (
+                isinstance(value, bool)
+                or not isinstance(value, (int, float))
+                or not math.isfinite(float(value))
+                or value < 0
+            ):
+                raise ValueError(
+                    f"Threat-score contribution {name} must be a finite, "
+                    "non-negative number"
+                )
 
     @property
-    def total(self) -> int:
-        return min(
-            100,
-            self.rapid_encryption
-            + self.mass_rename
-            + self.high_entropy
-            + self.cpu_spike
-            + self.unknown_program,
+    def total(self) -> float:
+        return max(
+            0.0,
+            min(
+                100.0,
+                self.rapid_encryption
+                + self.mass_rename
+                + self.high_entropy
+                + self.cpu_spike
+                + self.unknown_program,
+            ),
         )
 
     @property

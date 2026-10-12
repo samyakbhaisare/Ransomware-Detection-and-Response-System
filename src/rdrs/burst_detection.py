@@ -1,5 +1,6 @@
 ﻿from __future__ import annotations
 
+import math
 from collections import deque
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
@@ -408,6 +409,11 @@ class BurstDetectionEngine:
                     f"Invalid detection threshold: {key}"
                 ) from exc
 
+            if not math.isfinite(number):
+                raise ValueError(
+                    f"Detection threshold must be finite: {key}"
+                )
+
             if number < 0:
                 raise ValueError(
                     f"Detection threshold cannot be negative: {key}"
@@ -445,6 +451,11 @@ class BurstDetectionEngine:
                 raise ValueError(
                     f"Invalid scoring weight: {key}"
                 ) from exc
+
+            if not math.isfinite(number):
+                raise ValueError(
+                    f"Scoring weight must be finite: {key}"
+                )
 
             if number < 0:
                 raise ValueError(
@@ -989,7 +1000,6 @@ __all__ = [
     "DEFAULT_THRESHOLDS",
     "DEFAULT_SCORING_WEIGHTS",
 ]
-
 
 
 

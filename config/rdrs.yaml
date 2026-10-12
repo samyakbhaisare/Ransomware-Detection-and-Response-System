@@ -1,24 +1,30 @@
+# Optional legacy config template. The root config.yaml is canonical (FSD FR-1).
+# When used explicitly, paths resolve relative to this file, not the shell cwd.
 runtime:
   name: rdrs
   environment: development
-  data_dir: data
-  logs_dir: logs
-  shutdown_timeout: 10
-
+  data_dir: ../data
+  logs_dir: ../logs
+  shutdown_timeout: 20.0
+  watch_paths:
+    - ../data
 logging:
   level: INFO
-
 persistence:
   enabled: true
-  db_path: data/rdrs.db
-
-subsystems:
-  - name: config
-    healthy: true
-    critical: true
-  - name: logging
-    healthy: true
-    critical: true
-  - name: database
-    healthy: true
-    critical: true
+  db_path: ../data/rdrs.db
+detection:
+  window_seconds: 60.0
+  modified_files_per_minute: 20.0
+  renames: 10.0
+  extension_changes: 5.0
+  average_entropy: 7.0
+  cpu_percent: 80.0
+scoring:
+  weights:
+    rapid_encryption: 40.0
+    mass_rename: 30.0
+    high_entropy: 25.0
+    cpu_spike: 15.0
+    unknown_program: 10.0
+subsystems: []

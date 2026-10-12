@@ -1,13 +1,13 @@
 ﻿from __future__ import annotations
 
 import json
-from collections import Counter
 from typing import Any
+
+from sqlalchemy import func, select
 
 from .storage import (
     DatabaseManager,
     EventRecord,
-    ProcessRecord,
     ScoreRecord,
 )
 
@@ -141,51 +141,18 @@ class DashboardData:
     def recent_processes(
         self,
         limit: int = DEFAULT_PROCESS_LIMIT,
+        *,
+        cursor: tuple[Any, int] | None = None,
     ) -> list[dict[str, Any]]:
         """
         Return recent persisted psutil process snapshots.
 
         FR-4 process telemetry is exposed for the dashboard and CPU chart.
         """
-        limit = max(1, int(limit))
-
-        with self.database.engine.connect() as connection:
-            rows = connection.execute(
-                ProcessRecord.__table__.select()
-                .order_by(ProcessRecord.captured_at.desc())
-                .limit(limit)
-            ).mappings().all()
-
-        return [
-            {
-                "id": row["id"],
-                "pid": row["pid"],
-                "name": row["name"] or "",
-                "parent_pid": row["parent_pid"],
-                "command_line": row.get("command_line") or "",
-                "cwd": row.get("cwd") or "",
-                "started_at": row.get("started_at"),
-                "cpu_percent": self._safe_float(
-                    row["cpu_percent"]
-                ),
-                "memory_rss": self._safe_int(
-                    row["memory_rss"]
-                ),
-                "memory_percent": self._safe_float(
-                    row["memory_percent"]
-                ),
-                "disk_write_bytes": self._safe_int(
-                    row["disk_write_bytes"]
-                ),
-                "executable_path": (
-                    row["executable_path"] or ""
-                ),
-                "captured_at": self._iso(
-                    row["captured_at"]
-                ),
-            }
-            for row in rows
-        ]
+        return self.database.list_processes(
+            limit=max(1, int(limit)),
+            cursor=cursor,
+        )
 
     # ------------------------------------------------------------------
     # File events
@@ -337,36 +304,34 @@ class DashboardData:
         """
         limit = max(1, int(limit))
 
+        path = func.coalesce(
+            func.nullif(EventRecord.path, ""),
+            EventRecord.new_path,
+        )
+        statement = (
+            select(
+                path.label("path"),
+                func.count().label("modifications"),
+            )
+            .where(
+                EventRecord.action.in_(["modify", "modified"]),
+                path.is_not(None),
+                path != "",
+            )
+            .group_by(path)
+            .order_by(func.count().desc(), path.asc())
+            .limit(limit)
+        )
+
         with self.database.engine.connect() as connection:
-            rows = connection.execute(
-                EventRecord.__table__.select()
-                .where(
-                    EventRecord.action.in_(
-                        ["modify", "modified"]
-                    )
-                )
-                .order_by(
-                    EventRecord.created_at.desc()
-                )
-            ).mappings().all()
-
-        counts: Counter[str] = Counter()
-
-        for row in rows:
-            path = row.get("path")
-
-            if not path:
-                path = row.get("new_path")
-
-            if path:
-                counts[str(path)] += 1
+            rows = connection.execute(statement).mappings().all()
 
         return [
             {
-                "path": path,
-                "modifications": count,
+                "path": str(row["path"]),
+                "modifications": int(row["modifications"]),
             }
-            for path, count in counts.most_common(limit)
+            for row in rows
         ]
 
     # ------------------------------------------------------------------
@@ -376,13 +341,18 @@ class DashboardData:
     def cpu_history(
         self,
         limit: int = DEFAULT_PROCESS_LIMIT,
+        *,
+        processes: list[dict[str, Any]] | None = None,
     ) -> list[dict[str, Any]]:
         """
         Return chronological CPU telemetry for dashboard charting.
 
         Values originate from ProcessRecord / psutil snapshots.
         """
-        processes = self.recent_processes(limit)
+        if processes is None:
+            processes = self.recent_processes(limit)
+        else:
+            processes = list(processes[:max(1, int(limit))])
 
         processes.reverse()
 
@@ -400,13 +370,18 @@ class DashboardData:
     def entropy_history(
         self,
         limit: int = DEFAULT_EVENT_LIMIT,
+        *,
+        events: list[dict[str, Any]] | None = None,
     ) -> list[dict[str, Any]]:
         """
         Return entropy values recorded with file events.
 
         Only events containing a valid persisted entropy value are included.
         """
-        events = self.recent_events(limit)
+        if events is None:
+            events = self.recent_events(limit)
+        else:
+            events = list(events[:max(1, int(limit))])
 
         history: list[dict[str, Any]] = []
 
@@ -542,10 +517,12 @@ class DashboardData:
 
             "telemetry": {
                 "cpu": self.cpu_history(
-                    process_limit
+                    process_limit,
+                    processes=processes,
                 ),
                 "entropy": self.entropy_history(
-                    event_limit
+                    event_limit,
+                    events=events,
                 ),
             },
         }

@@ -71,6 +71,33 @@ def test_relative_watch_paths_resolve_against_the_config_file(tmp_path):
     assert resolved == (tmp_path / "watched")
 
 
+def test_relative_runtime_and_database_paths_resolve_against_config(tmp_path):
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    path = write_config(
+        config_dir,
+        "runtime:\n  data_dir: data\n  logs_dir: logs\n"
+        "  watch_paths: []\n"
+        "persistence:\n  enabled: true\n  db_path: data\\rdrs.db\n",
+    )
+
+    config = RuntimeConfig.load(path)
+
+    assert config.resolved_data_dir == config_dir / "data"
+    assert config.resolved_logs_dir == config_dir / "logs"
+    assert config.resolved_db_path == config_dir / "data" / "rdrs.db"
+    assert config.monitored_paths == [config_dir / "data"]
+
+
+def test_windows_separators_are_normalized_for_posix_paths(monkeypatch):
+    import rdrs.config as config_module
+
+    # Exercise Linux/Docker path parsing while running the suite on Windows.
+    monkeypatch.setattr(config_module.os, "name", "posix")
+
+    assert str(config_module._path_value(r"data\rdrs.db")) == "data/rdrs.db"
+
+
 def test_absolute_watch_paths_are_kept_as_given(tmp_path):
     target = tmp_path / "absolute_target"
 
@@ -124,6 +151,97 @@ def test_watch_paths_skips_blank_entries(tmp_path):
     )
 
     assert [p.name for p in config.watch_paths] == ["real"]
+
+
+@pytest.mark.parametrize(
+    ("section", "key", "value"),
+    [
+        ("detection", "window_seconds", float("nan")),
+        ("detection", "modified_files_per_minute", float("inf")),
+        ("detection", "renames", float("-inf")),
+        ("detection", "extension_changes", float("nan")),
+        ("scoring", "rapid_encryption", float("inf")),
+        ("scoring", "unknown_program", float("nan")),
+    ],
+)
+def test_non_finite_detection_and_scoring_values_are_rejected(
+    tmp_path,
+    section,
+    key,
+    value,
+):
+    raw = yaml.safe_load(
+        (PROJECT_ROOT / "config.yaml").read_text(encoding="utf-8")
+    )
+    data_dir = tmp_path / "data"
+    raw["runtime"]["data_dir"] = str(data_dir)
+    raw["runtime"]["logs_dir"] = str(tmp_path / "logs")
+    raw["runtime"]["watch_paths"] = [str(tmp_path / "watched")]
+    raw["persistence"]["db_path"] = str(data_dir / "rdrs.db")
+
+    target = raw[section]
+    if section == "scoring":
+        target = target["weights"]
+    target[key] = value
+
+    path = tmp_path / "non-finite.yaml"
+    path.write_text(
+        yaml.safe_dump(raw, sort_keys=False),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="finite"):
+        RuntimeConfig.load(path)
+
+
+def test_persistence_enabled_requires_a_yaml_boolean(tmp_path):
+    path = write_config(
+        tmp_path,
+        'runtime:\n  data_dir: data\n'
+        'persistence:\n  enabled: "false"\n',
+    )
+
+    with pytest.raises(ValueError, match="persistence.enabled must be a boolean"):
+        RuntimeConfig.load(path)
+
+
+@pytest.mark.parametrize("level", ["TRACE", "SUCCESS"])
+def test_unimplemented_logging_levels_are_rejected(tmp_path, level):
+    path = write_config(
+        tmp_path,
+        f"runtime:\n  data_dir: data\nlogging:\n  level: {level}\n",
+    )
+
+    with pytest.raises(ValueError, match="Unsupported log level"):
+        RuntimeConfig.load(path)
+
+
+def test_relative_data_logs_and_database_paths_use_config_directory(tmp_path):
+    config_dir = tmp_path / "custom-config"
+    config_dir.mkdir()
+    path = write_config(
+        config_dir,
+        "runtime:\n  data_dir: state\n  logs_dir: logs\n"
+        "  watch_paths: []\n"
+        "persistence:\n  enabled: true\n  db_path: state\\rdrs.db\n",
+    )
+
+    config = RuntimeConfig.load(path)
+
+    assert config.resolved_data_dir == config_dir / "state"
+    assert config.resolved_logs_dir == config_dir / "logs"
+    assert config.resolved_db_path == config_dir / "state" / "rdrs.db"
+    assert config.monitored_paths == [config_dir / "state"]
+
+
+def test_windows_database_separator_is_portable_to_posix(monkeypatch):
+    import rdrs.config as config_module
+
+    # Simulate parsing the checked-in Windows-style scalar in a Linux image.
+    monkeypatch.setattr(config_module.os, "name", "posix")
+    parsed = config_module._path_value(r"data\rdrs.db")
+
+    assert parsed.parts == ("data", "rdrs.db")
 
 
 def test_to_dict_exposes_watch_paths():

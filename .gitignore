@@ -3,8 +3,15 @@ data/*.db
 data/*.db-*
 data/**/*.db
 data/**/*.db-*
+data/sandbox/
+data/probe_root.txt
 logs/
 *.log
+
+# Local environment secrets; the empty example manifest is safe to distribute.
+.env
+.env.*
+!.env.example
 
 # Configuration backups (the canonical config.yaml is tracked)
 config.yaml.bak-*
@@ -36,6 +43,10 @@ htmlcov/
 # Local verification scratch space: harnesses, CDP drivers, screenshots,
 # junit XML and rendered compose output. Reproducible, not source.
 ptmp/
+SUBMISSION.md
+src/main.py
+src/__init__.py
+deploy/evidence/
 
 # Editor / OS
 .vscode/
@@ -65,3 +76,27 @@ reports/backups/
 data/reports/
 data/quarantine/
 e2e_out/
+
+# Curated, sanitized submission excerpts are deliberate evidence, not runtime logs.
+!submission/evidence/logs/
+!submission/evidence/logs/**
+
+# Server-only ACME account/certificate secrets must never enter the repository.
+deploy/tls/
+deploy/acme/
+
+# Release artifacts, retained archives and historical audit material.
+RDRS-CLI-SUBMISSION*.zip
+preservation/
+release-archives/
+reports/*.md
+docs/RDRS_Theoretical_Maximum*.pdf
+build_guide_text.txt
+src/rdrs/dashboard/*.bak_*
+tests/unit/*.phase9_backup
+.pytest_tmp*/
+pytest_tmp*/
+.pytest_tmp/
+cov*.json
+RDRS_COVERAGE.json
+ptmp/

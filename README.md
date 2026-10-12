@@ -1,8 +1,9 @@
 # RDRS — Ransomware Detection & Response System
 
-A defensive ransomware detection and response toolkit implementing the full
-FSD requirement set (FR-01 … FR-13) and the Hands-On Build Guide phases
-(Phase 1 … Phase 10).
+A local-first defensive toolkit that watches configured paths for
+ransomware-like file activity, records telemetry, scores bursts, and reports
+incidents. It monitors only paths configured in `config.yaml`; it is not
+host-wide protection by default.
 
 > **Defensive tooling only.** RDRS detects ransomware-like behaviour and copies
 > evidence for analysis. It never encrypts, never destroys data, and never
@@ -25,33 +26,48 @@ FSD requirement set (FR-01 … FR-13) and the Hands-On Build Guide phases
 | REST API | FR-10 | Implemented |
 | Live dashboard | FR-11 | Implemented |
 | JSON / CSV reports | FR-12 | Implemented |
-| Automated tests + Docker | FR-13 | Tests implemented; **Docker deployment not verified** |
+| Automated tests + Docker | FR-13 | Implemented; dated release/deployment results below |
 
-> FR-13 has two halves. The automated-testing half is implemented and verified.
-> The Docker-deployment half is implemented as configuration but has **never been
-> built or run** — see [Docker verification status](#docker-verification-status).
-> FR-13 is therefore **partially** verified, not complete.
+> Scope is FR-01–FR-13 and Build Guide Phases 1–10. See
+> [authoritative scope](docs/AUTHORITATIVE_SCOPE.md) and
+> [current release results](docs/RELEASE_VERIFICATION.md). Historical local
+> Docker failures are separate from the healthy hosted service.
+> Windows Docker bind-mount notification delivery remains unverified.
 
-Threat bands: **Normal** 0–40, **Warning** 40–70, **Critical** 70–100.
+Threat bands: **Normal** `<40`, **Warning** `40–<70`, **Critical** `>=70` (capped at 100).
 
 Scoring weights (Build Guide Phase 5): rapid encryption 40, mass rename 30,
 high entropy 25, CPU spike 15, unknown program 10.
 
 ## Requirements
 
-- Python 3.13+
-- Dependencies: `pip install -r requirements.txt`
+- Python `>=3.11` per `pyproject.toml`; the container uses Python 3.13.
+- Dependencies: `python -m pip install -e . -r requirements.txt`
+
+## Technology stack
+
+- Python, FastAPI, and Uvicorn for the runtime API and dashboard server.
+- watchdog for filesystem notifications and psutil for process snapshots.
+- SQLAlchemy with SQLite for persisted events, alerts, incidents, and history.
+- YAML configuration and a single-page HTML/CSS/JavaScript dashboard.
+- Node.js dashboard harness and pytest backend/integration tests.
+- Docker Compose for containerized local runs.
 
 ## Quick start
 
 ```bash
-pip install -r requirements.txt
+pip install -e . -r requirements.txt
 
 # Start the API + dashboard on http://127.0.0.1:8000
-uvicorn rdrs.api:app --host 0.0.0.0 --port 8000
+uvicorn rdrs.api:app --host 127.0.0.1 --port 8000
 ```
 
 Open `http://127.0.0.1:8000/` for the dashboard.
+
+The server loads the repository's `config.yaml`. Set `runtime.watch_paths` only
+to directories intended for monitoring. The sample configuration watches
+`data/`; persistence is enabled by default, and simulation mode is on by
+default. Never point a demonstration at personal or production data.
 
 ## CLI
 
@@ -75,9 +91,9 @@ rdrs stop
 | GET | `/alerts` | Alerts raised |
 | GET | `/incidents` | Incidents raised |
 | GET | `/dashboard-data` | Aggregated dashboard payload |
-| GET | `/scan` | Trigger a scan |
+| GET | `/scan` | Return scan usage information |
 | POST | `/scan` | Trigger a scan (with parameters) |
-| GET | `/reports` | List generated reports |
+| GET | `/reports` | List incidents eligible for reports; downloads return 404 if no report exists |
 | POST | `/reports/generate` | Generate a JSON/CSV incident report |
 | GET | `/reports/{incident_id}/{format}` | Download a report (`json` or `csv`) |
 | POST | `/settings` | Update runtime settings (persisted to the config file) |
@@ -122,9 +138,10 @@ docker compose up --build --force-recreate   # rebuild from scratch
 | Base | `python:3.13-slim` — satisfies `requires-python >= 3.11` and the Guide's 3.12+ |
 | Working directory | `/app` |
 | User | `rdrs` (uid 1001, system account) — **not root** |
-| Port | `8000` |
+| Container port | `8000` |
+| Published host port | `127.0.0.1:8000` (loopback only) |
 | Entrypoint | `uvicorn rdrs.api:app --host 0.0.0.0 --port 8000` |
-| Healthcheck | calls `http://127.0.0.1:8000/health` and fails on a non-2xx response |
+| Healthcheck | calls `/health` and requires HTTP 200 plus JSON `healthy: true` |
 | Build context | filtered by `.dockerignore` — no `.venv`, `.git`, databases, logs, caches, secrets or reports |
 
 Writable paths inside the image are `/app/data` and `/app/logs`, both owned by
@@ -158,27 +175,33 @@ Behaviour is identical to a local run:
 
 ### Docker verification status
 
-**NOT VERIFIED — the image has not been built and no container has been run.**
+**Historical runtime verification (2026-10-08).**
 
-The Dockerfile and compose file are statically validated (46 checks in
-`tests/unit/test_docker_configuration.py`), and `docker compose config` renders
-cleanly, but that is **configuration** validation only and is not evidence that
-the container starts.
+Docker Engine 29.8.0 and Compose 5.5.1 built the current image with
+`docker compose build --no-cache`. The container reached `healthy`, `/health`
+and `/status` returned a healthy `RUNNING` runtime, and the published port was
+`127.0.0.1:8000`. Bind-mounted SQLite history survived restart; clean shutdown
+and fresh startup succeeded. Static Docker tests passed (49 checks).
 
-The blocker is environmental, in two independent parts:
+**Historical local release-check status (2026-10-09):** the `rdrs` container was
+`running` but `unhealthy`. `/health` reports `healthy: false` with the
+process-monitor subsystem unhealthy, and `/dashboard-data` returns HTTP 500.
+The most recent process-monitor error reports SQLite `database disk image is
+malformed`. No database repair or Docker restart was performed. Historical
+results below are not a claim that the current runtime is healthy.
 
-1. The Docker daemon is not running. Docker Desktop's backend crashes at
-   startup with `unable to get 'ProgramData'` (from
-   `%LOCALAPPDATA%\Docker\log\host\monitor.log`), and no Docker process survives
-   a launch attempt.
-2. `wsl.exe` — the backend Docker Desktop requires on Windows — is blocked by
-   this machine's security policy, which states the block cannot be approved or
-   bypassed and must not be retried.
+The latest storage change maintains an exact process-history count using a
+persistent SQLite aggregate and transactional triggers. It preserves existing
+history and the dashboard response schema. At one post-restart snapshot, a direct
+SQLite count and the persistent aggregate both read 2,426,282 process rows; the
+count continues increasing during monitoring. The latest five Docker
+`/dashboard-data` requests measured 61.30, 114.60, 21.60, 17.90 and 31.41 ms
+(median 31.41 ms; all samples shown). Browser first-data measurements were
+175.1, 64.2 and 59.0 ms (median 64.2 ms), compared with prior Docker medians of
+4,768 ms and 5,293 ms. The read-only exact full-table verification scan itself
+took 8.101 seconds; dashboard refresh uses the indexed aggregate lookup instead.
 
-No workaround was attempted. **Phase 10 and the deployment half of FR-13 remain
-unverified.**
-
-To complete the verification on a Docker-enabled machine:
+To repeat the runtime verification:
 
 ```bash
 docker compose up --build -d
@@ -201,6 +224,12 @@ The suite covers unit tests and integration tests (config, entropy, detection,
 scoring, persistence, response, API, dashboard data, reporting, logging and
 runtime lifecycle).
 
+The last full-suite result recorded above is from 2026-10-08. The final
+submission check did not rerun database-backed tests because the current
+environment has an unresolved persistent-database health error. Before running
+runtime tests against an active instance, use an isolated temporary
+configuration and database; do not target the live `data/rdrs.db`.
+
 ### Front-end verification
 
 The dashboard's own JavaScript is executed, not just inspected. `pytest`
@@ -209,7 +238,7 @@ invokes a Node harness that loads the real `<script>` block out of
 the real functions (refresh, control buttons, settings rendering):
 
 ```bash
-node ptmp/dashboard_frontend_harness.mjs
+node tests/dashboard_frontend_harness.mjs
 ```
 
 **Prerequisite:** Node.js (the harness is run from `pytest`, so a missing
@@ -294,8 +323,10 @@ a rename or delete).
 **Data flow:** file events and process snapshots are persisted, then evaluated in
 a sliding window. When enough signals fire, a weighted score is computed; a
 CRITICAL score creates an alert and an incident, and evidence is **copied** to
-quarantine. The dashboard reads one aggregated payload rather than querying the
-database itself.
+quarantine. The incident's process field is a highest-CPU process snapshot
+heuristic; it does **not** establish which process performed the file changes.
+The dashboard reads one aggregated payload rather than querying the database
+itself.
 
 ## Detection signals and false positives
 
@@ -307,9 +338,9 @@ The detector fires on five signals, each weighted (see `config.yaml`):
 | `mass_rename` | many renames inside the window | 30 |
 | `high_entropy` | average entropy of modified files is high | 25 |
 | `cpu_spike` | the suspect process is CPU-busy | 15 |
-| `unknown_program` | the suspect process is not a known system binary | 10 |
+| `unknown_program` | the process snapshot has neither a readable name nor executable path | 10 |
 
-Bands: **NORMAL** `< 40`, **WARNING** `40–69`, **CRITICAL** `>= 70`. Only
+Bands: **NORMAL** `< 40`, **WARNING** `40–<70`, **CRITICAL** `>= 70`. Only
 CRITICAL creates an incident.
 
 **False positives are the main practical risk for a detector like this**, and the
@@ -359,44 +390,45 @@ is the intended behaviour, but is worth knowing before it looks like data loss.
 
 ## Known limitations
 
-* **Docker deployment is not verified.** The Dockerfile and compose file are
-  statically validated and `docker compose config` renders cleanly, but the image
-  has never been built and no container has been run, so Phase 10 and the
-  deployment half of FR-13 remain unverified. The blocker is environmental: the
-  Docker daemon is not running (Docker Desktop's backend crashes with
-  `unable to get 'ProgramData'`) and `wsl.exe`, which it requires on Windows, is
-  blocked by this machine's security policy. See the Docker section above.
-* **Filesystem monitoring inside a container is untested.** watchdog relies on
+* **Filesystem notifications on a Windows Docker bind mount are untested.** watchdog relies on
   native filesystem notifications; behaviour on a bind-mounted volume (Docker
-  Desktop on Windows in particular) may differ from the host.
-* **No authentication.** The API trusts the local machine and guards mutating
-  endpoints with a local-origin check. It is not intended to be exposed to a
-  network.
+  Desktop on Windows in particular) may differ from the host. Docker process
+  telemetry covers the container namespace, not all host processes.
+* **No login/account system.** Local administrative access is trusted and
+  origin-checked. Hosted Nginx exposes explicitly allowed GET reads with backend
+  redaction; mutations/admin routes are blocked. Port 8000 is loopback-only.
+  Private original details require an authenticated SSH tunnel.
+* **Process attribution is heuristic.** The runtime associates the current
+  highest-CPU process snapshot with a file burst; watchdog events do not carry
+  a process ID, so the snapshot is not proof that this process changed the files.
 * **Single-process only.** SQLite plus in-process runtime state means the app is
   not safe to run as multiple replicas.
 * **No allow-list / exclusion tuning** for false positives (see above).
-* **Cloud hosting is not a good fit as-is** — the tool watches the local
-  filesystem, so a hosted container would only watch its own volume.
+* **Hosted monitoring is scoped** to configured container volumes and its
+  process namespace; it does not protect visitors' computers or the whole VPS.
 * A long-running instance accumulates process snapshots quickly; the bundled
   database can grow large during extended testing.
 
 ## Verification status
 
-Verified with fresh evidence unless marked otherwise.
+Verification results are dated historical records, not a fresh full-suite run.
+The final scoped release run passed 246 backend tests and 124 frontend checks;
+see [release verification](docs/RELEASE_VERIFICATION.md).
+Historical runtime checks must not be confused
+with the current Docker availability noted above:
 
 | Area | Status |
 | --- | --- |
-| Backend test suite (`pytest tests`) | **794 passed, 0 failed, 0 errors, 0 skipped** |
-| Front-end harness (`ptmp/dashboard_frontend_harness.mjs`) | **115 passed, 0 failed** |
-| Encoding + safety scan (`ptmp/encoding_safety_scan.py`) | **22 passed, 0 failed** |
-| Docker configuration (static, `tests/unit/test_docker_configuration.py`) | **46 passed** — configuration only, not a container run |
-| Live browser verification (real API, no injected data) | **19 passed, 0 failed** |
-| Entropy (FR-3) | normal text **4.397**, random bytes **7.979** |
-| Quarantine (FR-9) | copy-only confirmed — `copy2`; no `unlink`, no `shutil.move` |
-| Persistence across a process restart | events/alerts/incidents/scores all preserved |
-| Monitoring lifecycle (start/stop/start, polling while stopped) | no 500s; 24 concurrent reads all 200 |
-| Report generation (JSON + CSV) | repeated generation and downloads verified |
-| **Docker build / container run (Phase 10, FR-13)** | **NOT VERIFIED — Docker daemon will not start** |
+| Full backend suite (last full run, 2026-10-08) | **835 passed, 0 failed, 0 skipped** |
+| Line coverage (last full run, 2026-10-08) | **94%** (3,557 statements) |
+| Dashboard JavaScript harness (`node tests/dashboard_frontend_harness.mjs`) | **124 passed, 0 failed** (2026-10-09 final evidence check) |
+| Encoding and safety scan (`python tests/encoding_safety_scan.py`) | **22/22 passed** (2026-10-09 final evidence check) |
+| Safe sandbox live E2E | Previously produced Critical 85/100, incident #1, 10 hash-verified quarantine copies, and sanitized reports/logs in an isolated local runtime. |
+| Isolated dashboard demo (2026-10-09) | `/health`, `/dashboard-data`, `/events`, `/processes`, `/alerts`, `/incidents`: **HTTP 200** against a new temporary config/database; displayed summary: 202 events, 454 process snapshots, 2 alerts, 1 incident. |
+| Docker static configuration (`tests/unit/test_docker_configuration.py`) | **49 passed** (2026-10-09 final evidence check) |
+| Docker build/runtime/persistence/restart | **Passed historically** after the exact-count performance fix; current container is running but unhealthy. |
+| Docker `/dashboard-data` | **31.41 ms median historically** (five-request sample; 114.60 ms maximum); current endpoint returns HTTP 500. |
+| Docker browser first data | **64.20 ms median historically** for three navigations; zero browser errors in that run. |
 
 ## Design, testing and future improvements
 
@@ -406,18 +438,19 @@ tested in isolation. Persistence is SQLite via SQLAlchemy because it needs no
 server and the dataset is single-machine. The runtime owns the database
 lifecycle: read endpoints never close it, because doing so raced concurrent
 reads and produced 500s while monitoring was stopped. The dashboard renders one
-aggregated payload per poll instead of issuing many small requests. All
-timestamps ordered by the list endpoints are indexed, which took the dashboard
-payload from ~8.5 s to ~0.08 s on a database holding ~980k process rows.
+aggregated payload per poll instead of issuing many small requests. A prior
+local benchmark recorded ~0.08 s dashboard reads on a database with ~980k process
+rows (down from ~8.5 s); that benchmark was not repeated in this verification
+cycle.
 
-**How it was tested.** Three layers: a 739-test backend suite covering config,
-storage, detection, scoring, the API and the runtime lifecycle; a front-end
-harness that executes the real dashboard JavaScript in a JS VM with a DOM stub;
-and a live pass that drives a real browser against the running server using the
-real API responses — no injected payloads. Detection was exercised with the
-Build Guide's section 15 sandbox script: throwaway files overwritten with
-`os.urandom` and renamed to `.locked`, which reaches CRITICAL and creates an
-incident with copied evidence while the originals stay untouched.
+**How it was tested.** The backend suite covers config, storage, detection,
+scoring, API routes and runtime lifecycle. The front-end harness executes the
+dashboard's actual JavaScript in a Node VM with a DOM stub, including paging
+through server-provided cursors. The encoding/safety scan checks source and
+served response bytes, simulation defaults, copy-only quarantine, and unchanged
+detection thresholds. The live safe-sandbox E2E verified the real event-to-report
+chain. Docker was rebuilt without cache, its health-checked API was exercised,
+and database history was checked across restart.
 
 **One false positive considered.** A user archiving a project directory would
 create many new files and rename many others in a short window, and a `.zip` or
@@ -430,10 +463,82 @@ right fix is a path exclusion for backup/archive locations.
 **What I would improve next, in order:**
 1. A **path and process allow-list** so backups, archives, build directories and
    known tools can be excluded — the single highest-value change.
-2. **Verify Docker** and confirm watchdog works on a bind-mounted volume.
+2. **Make watchdog notifications on Windows Docker bind mounts reliable.** During the 2026-10-08 safe demo, Docker was healthy but did not receive the host file events; the detection evidence was captured with an isolated local runtime. The current container is running but unhealthy, as noted above.
 3. **Authenticate the API** and make the local-origin check configurable, so it
    could run on a host rather than only on a workstation.
 4. **Retention for process snapshots** — the table grows without bound; a
    time-based prune would keep the database small.
-5. **Ship the architecture diagram and screenshots** with the repository, and
-   record a short demonstration of the sandbox attack.
+5. **Retain sanitized submission evidence** in `submission/`: a genuine incident
+   dashboard capture, incident-scoped JSON/CSV reports, and event/alert/audit
+   log excerpts. Raw runtime outputs remain under ignored `data/` and `logs/`.
+
+## Submission evidence
+
+The retained `submission/screenshots/01-dashboard.png` was captured on
+2026-10-09 from a separate temporary
+configuration, database, and sandbox under ignored `ptmp/`. Its real summary
+was 202 events, 454 cumulative process snapshots, 2 alerts, and 1 incident.
+It does **not** show the unhealthy Docker instance or its database.
+
+![Incident 1 from the safe sandbox run: Critical 85/100, 23 affected paths, simulation mode](submission/screenshots/02-incident-details.png)
+
+This genuine dashboard incident card is from the earlier 2026-10-08 safe
+sandbox run and is separate from the isolated 2026-10-09 Overview capture. It
+does not represent the current Docker health state. See the [demonstration write-up](submission/WRITEUP.md),
+[sanitized JSON report](submission/evidence/reports/incident_report.json),
+[sanitized CSV report](submission/evidence/reports/incident_report.csv), and
+[sanitized event/alert/audit excerpts](submission/evidence/logs/incident_log_excerpts.jsonl).
+
+![Read-only SHA-256 verification of ten quarantine copies against sandbox originals](submission/screenshots/03-response-quarantine.png)
+
+![Generated sanitized RDRS incident JSON report](submission/screenshots/04-generated-report.png)
+
+![Actual static Docker configuration test output: 49 passed](submission/screenshots/05-test-evidence.png)
+
+The current Docker API still returns HTTP 500 for `/dashboard-data`; no screenshot
+of that unhealthy runtime was used. The Overview image above comes only from the
+separately configured disposable runtime and real data it generated.
+
+## Deployment status
+
+**Public read-only dashboard:** https://192.46.208.222/
+
+The Akamai VPS deployment was initially verified on 2026-10-10 with fresh
+persistent storage. Original historical records were subsequently imported and
+preserved. On 2026-10-12, actual Chrome local/hosted checks passed all seven pages,
+event/process pagination, four incident timelines and existing redacted JSON/CSV
+downloads. All 1,577 events, sampled process pages and eight report responses
+passed redaction checks. Public administrative operations and scan/settings/docs
+routes returned HTTP 403. Port 8000 is VPS-loopback only.
+See [deployment commands and actual verification results](deploy/README.md).
+
+The public service is an HTTPS read-only reviewer interface, not an authenticated
+production security console. Administrative buttons are retained but blocked.
+IDs, scores, timestamps, signals and numeric telemetry remain; paths/process
+names are pseudonymized, commands and unapproved evidence fields removed.
+Pseudonyms are consistent within a server process and can change after restart.
+Free-text descriptions/recommendations and some metadata/file types are redacted.
+Public report buttons download existing redacted files without generating evidence.
+Original reports/private details remain accessible through an authorized SSH tunnel.
+The local malformed database remains untouched and separate from the healthy
+VPS database. RDRS monitors configured mounted paths and the container process
+namespace; it is not comprehensive host-level ransomware protection.
+
+Copy buttons use the browser Clipboard API over HTTPS. The public IP has a
+trusted short-lived certificate with automatic renewal checks. If clipboard
+permission is denied, the UI reports failure explicitly and leaves the full
+path available on hover. See the deployment notes for exact browser paste tests.
+
+## Internmo source and submission
+
+Private repository: <https://github.com/samyakbhaisare/Ransomware-Detection-and-Response-System>.
+The controlled-manifest `RDRS-CLI-SUBMISSION.zip` is distributed separately from
+Git source and excludes databases, caches, credentials and raw evidence stores.
+See [submission evidence](submission/evidence/README.md),
+[design write-up](submission/WRITEUP.md) and [release results](docs/RELEASE_VERIFICATION.md).
+
+![Original isolated SOC Overview](submission/screenshots/01-dashboard.png)
+
+All five original screenshots are preserved. They depict dated safe runs,
+not today's changing live counters. Older Docker failures are historical local
+checks, not claims that the currently verified VPS is unhealthy.

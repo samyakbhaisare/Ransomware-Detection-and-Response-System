@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -15,6 +16,7 @@ from sqlalchemy import (
     Text,
     create_engine,
     inspect as sa_inspect,
+    and_,
     or_,
     text as sa_text,
 )
@@ -29,6 +31,33 @@ from sqlalchemy.orm import (
 def utc_now() -> datetime:
     """Return the current timezone-aware UTC timestamp."""
     return datetime.now(timezone.utc)
+
+
+def event_datetime(value: Any) -> datetime:
+    """Normalize an observed event timestamp to an aware UTC datetime."""
+    if value is None:
+        return utc_now()
+
+    if isinstance(value, datetime):
+        parsed = value
+    elif isinstance(value, (int, float)) and not isinstance(value, bool):
+        if not math.isfinite(float(value)):
+            raise ValueError("Event timestamp must be finite")
+        parsed = datetime.fromtimestamp(float(value), tz=timezone.utc)
+    elif isinstance(value, str):
+        text = value.strip()
+        if text.endswith("Z"):
+            text = text[:-1] + "+00:00"
+        parsed = datetime.fromisoformat(text)
+    else:
+        raise ValueError(
+            f"Unsupported event timestamp type: {type(value).__name__}"
+        )
+
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+
+    return parsed.astimezone(timezone.utc)
 
 
 class Base(DeclarativeBase):
@@ -390,6 +419,7 @@ def _install_sqlite_concurrency_pragmas(engine, *, durable: bool) -> None:
                     cursor.execute("PRAGMA synchronous=NORMAL")
 
                 cursor.execute("PRAGMA busy_timeout=30000")
+                cursor.execute("PRAGMA recursive_triggers=ON")
             finally:
                 cursor.close()
         except Exception:
@@ -467,6 +497,41 @@ class DatabaseManager:
         Base.metadata.create_all(self.engine)
         self._migrate_schema()
         self._migrate_indexes()
+        self._initialize_process_count()
+
+    def _initialize_process_count(self) -> None:
+        """Seed once, then maintain an exact historical row count in SQLite.
+
+        The write lock makes seeding and trigger installation atomic with other
+        writers. Triggers cover ORM, bulk and external SQL writes; their updates
+        commit/roll back with the process rows. Existing history is never changed.
+        """
+        with self._require_engine().connect() as connection:
+            connection.exec_driver_sql("BEGIN IMMEDIATE")
+            try:
+                connection.exec_driver_sql(
+                    "CREATE TABLE IF NOT EXISTS rdrs_row_counts ("
+                    "table_name TEXT PRIMARY KEY, row_count INTEGER NOT NULL "
+                    "CHECK (row_count >= 0))"
+                )
+                if connection.exec_driver_sql(
+                    "SELECT 1 FROM rdrs_row_counts WHERE table_name = 'processes'"
+                ).first() is None:
+                    connection.exec_driver_sql(
+                        "INSERT INTO rdrs_row_counts (table_name, row_count) "
+                        "SELECT 'processes', COUNT(*) FROM processes"
+                    )
+                for operation, delta in (("INSERT", "+ 1"), ("DELETE", "- 1")):
+                    connection.exec_driver_sql(
+                        f"CREATE TRIGGER IF NOT EXISTS rdrs_process_count_{operation.lower()} "
+                        f"AFTER {operation} ON processes BEGIN "
+                        f"UPDATE rdrs_row_counts SET row_count = row_count {delta} "
+                        "WHERE table_name = 'processes'; END"
+                    )
+                connection.commit()
+            except Exception:
+                connection.rollback()
+                raise
 
     # Columns added after the original schema shipped. Existing databases
     # (created before this change) are upgraded in place with ALTER TABLE so
@@ -592,6 +657,42 @@ class DatabaseManager:
             )
 
         return self.engine
+
+    @staticmethod
+    def _timestamp_id_filter(
+        query: Any,
+        timestamp_column: Any,
+        id_column: Any,
+        cursor: tuple[datetime, int] | None,
+        *,
+        after: bool = False,
+    ) -> Any:
+        """Apply a stable `(timestamp, id)` keyset cursor to a query."""
+        if cursor is None:
+            return query
+
+        timestamp, record_id = cursor
+        if timestamp.tzinfo is not None:
+            timestamp = timestamp.astimezone(timezone.utc).replace(tzinfo=None)
+
+        if after:
+            condition = or_(
+                timestamp_column > timestamp,
+                and_(
+                    timestamp_column == timestamp,
+                    id_column > int(record_id),
+                ),
+            )
+        else:
+            condition = or_(
+                timestamp_column < timestamp,
+                and_(
+                    timestamp_column == timestamp,
+                    id_column < int(record_id),
+                ),
+            )
+
+        return query.filter(condition)
 
     @staticmethod
     def _decode_json(value: str | None) -> dict[str, Any]:
@@ -737,6 +838,7 @@ class DatabaseManager:
                     is not None
                     else None
                 ),
+                created_at=event_datetime(event.get("timestamp")),
             )
 
             session.add(record)
@@ -788,6 +890,9 @@ class DatabaseManager:
         self,
         incident_id: int | None,
         paths: list[str],
+        *,
+        since: datetime | None = None,
+        until: datetime | None = None,
     ) -> int:
         """Attach unassigned events for specific files to an incident.
 
@@ -807,20 +912,23 @@ class DatabaseManager:
             return 0
 
         with Session(self._require_engine()) as session:
+            query = session.query(EventRecord).filter(
+                EventRecord.incident_id.is_(None),
+                or_(
+                    EventRecord.path.in_(safe_paths),
+                    EventRecord.new_path.in_(safe_paths),
+                    EventRecord.previous_path.in_(safe_paths),
+                ),
+            )
+
+            if since is not None:
+                query = query.filter(EventRecord.created_at >= since)
+
+            if until is not None:
+                query = query.filter(EventRecord.created_at <= until)
+
             updated = (
-                session.query(EventRecord)
-                .filter(
-                    EventRecord.incident_id.is_(None),
-                    or_(
-                        EventRecord.path.in_(safe_paths),
-                        EventRecord.new_path.in_(
-                            safe_paths
-                        ),
-                        EventRecord.previous_path.in_(
-                            safe_paths
-                        ),
-                    ),
-                )
+                query
                 .update(
                     {
                         EventRecord.incident_id: int(
@@ -1141,15 +1249,24 @@ class DatabaseManager:
     def list_events(
         self,
         limit: int = 100,
+        *,
+        cursor: tuple[datetime, int] | None = None,
     ) -> list[dict[str, Any]]:
         """Return newest persisted file events first."""
         safe_limit = max(1, int(limit))
 
         with Session(self._require_engine()) as session:
+            query = session.query(EventRecord)
+            query = self._timestamp_id_filter(
+                query,
+                EventRecord.created_at,
+                EventRecord.id,
+                cursor,
+            )
             records = (
-                session.query(EventRecord)
-                .order_by(
-                    EventRecord.created_at.desc()
+                query.order_by(
+                    EventRecord.created_at.desc(),
+                    EventRecord.id.desc(),
                 )
                 .limit(safe_limit)
                 .all()
@@ -1178,15 +1295,24 @@ class DatabaseManager:
     def list_processes(
         self,
         limit: int = 100,
+        *,
+        cursor: tuple[datetime, int] | None = None,
     ) -> list[dict[str, Any]]:
         """Return newest persisted process snapshots first."""
         safe_limit = max(1, int(limit))
 
         with Session(self._require_engine()) as session:
+            query = session.query(ProcessRecord)
+            query = self._timestamp_id_filter(
+                query,
+                ProcessRecord.captured_at,
+                ProcessRecord.id,
+                cursor,
+            )
             records = (
-                session.query(ProcessRecord)
-                .order_by(
-                    ProcessRecord.captured_at.desc()
+                query.order_by(
+                    ProcessRecord.captured_at.desc(),
+                    ProcessRecord.id.desc(),
                 )
                 .limit(safe_limit)
                 .all()
@@ -1252,15 +1378,24 @@ class DatabaseManager:
     def list_alerts(
         self,
         limit: int = 100,
+        *,
+        cursor: tuple[datetime, int] | None = None,
     ) -> list[dict[str, Any]]:
         """Return newest persisted alerts first."""
         safe_limit = max(1, int(limit))
 
         with Session(self._require_engine()) as session:
+            query = session.query(AlertRecord)
+            query = self._timestamp_id_filter(
+                query,
+                AlertRecord.created_at,
+                AlertRecord.id,
+                cursor,
+            )
             records = (
-                session.query(AlertRecord)
-                .order_by(
-                    AlertRecord.created_at.desc()
+                query.order_by(
+                    AlertRecord.created_at.desc(),
+                    AlertRecord.id.desc(),
                 )
                 .limit(safe_limit)
                 .all()
@@ -1284,15 +1419,24 @@ class DatabaseManager:
     def list_incidents(
         self,
         limit: int = 100,
+        *,
+        cursor: tuple[datetime, int] | None = None,
     ) -> list[dict[str, Any]]:
         """Return newest persisted incidents first."""
         safe_limit = max(1, int(limit))
 
         with Session(self._require_engine()) as session:
+            query = session.query(IncidentRecord)
+            query = self._timestamp_id_filter(
+                query,
+                IncidentRecord.created_at,
+                IncidentRecord.id,
+                cursor,
+            )
             records = (
-                session.query(IncidentRecord)
-                .order_by(
-                    IncidentRecord.created_at.desc()
+                query.order_by(
+                    IncidentRecord.created_at.desc(),
+                    IncidentRecord.id.desc(),
                 )
                 .limit(safe_limit)
                 .all()
@@ -1385,6 +1529,8 @@ class DatabaseManager:
         self,
         incident_id: int | None,
         limit: int = 1000,
+        *,
+        after: tuple[datetime, int] | None = None,
     ) -> list[dict[str, Any]]:
         """Return only the events attributed to one incident.
 
@@ -1399,14 +1545,20 @@ class DatabaseManager:
         safe_limit = max(1, int(limit))
 
         with Session(self._require_engine()) as session:
+            query = session.query(EventRecord).filter(
+                EventRecord.incident_id == int(incident_id)
+            )
+            query = self._timestamp_id_filter(
+                query,
+                EventRecord.created_at,
+                EventRecord.id,
+                after,
+                after=True,
+            )
             records = (
-                session.query(EventRecord)
-                .filter(
-                    EventRecord.incident_id
-                    == int(incident_id)
-                )
-                .order_by(
-                    EventRecord.created_at.asc()
+                query.order_by(
+                    EventRecord.created_at.asc(),
+                    EventRecord.id.asc(),
                 )
                 .limit(safe_limit)
                 .all()
@@ -1458,6 +1610,10 @@ class DatabaseManager:
             )
 
         with Session(self._require_engine()) as session:
+            if model is ProcessRecord:
+                return int(session.execute(sa_text(
+                    "SELECT row_count FROM rdrs_row_counts WHERE table_name = 'processes'"
+                )).scalar_one())
             return int(
                 session.query(model).count()
             )
@@ -1489,11 +1645,20 @@ class DatabaseManager:
 
         counts: dict[str, int] = {}
 
+        if not models:
+            return counts
+
+        # One SELECT provides a single SQLite read snapshot, including the
+        # transactionally maintained process count and the remaining small tables.
+        expressions = [
+            "(SELECT row_count FROM rdrs_row_counts WHERE table_name = 'processes')"
+            if model is ProcessRecord
+            else f"(SELECT COUNT(*) FROM {model.__tablename__})"
+            for model in models.values()
+        ]
         with Session(self._require_engine()) as session:
-            for table, model in models.items():
-                counts[table] = int(
-                    session.query(model).count()
-                )
+            row = session.execute(sa_text("SELECT " + ", ".join(expressions))).one()
+            counts = {table: int(value) for table, value in zip(models, row)}
 
         return counts
 

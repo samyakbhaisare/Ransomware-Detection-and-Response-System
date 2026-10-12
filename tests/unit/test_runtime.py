@@ -2,9 +2,11 @@
 import subprocess
 import os
 import sys
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
+import yaml
 
 from rdrs.runtime import RuntimeManager, RuntimeStatus
 
@@ -71,6 +73,104 @@ def test_runtime_lifecycle_start_stop(runtime):
     assert runtime.status()["state"] == RuntimeStatus.RUNNING.value
     runtime.stop()
     assert runtime.state == RuntimeStatus.STOPPED
+
+
+def test_runtime_detector_uses_configured_scoring_weights(tmp_path):
+    """The active runtime detector must use weights loaded from YAML."""
+    project_root = Path(__file__).resolve().parents[2]
+    config = yaml.safe_load(
+        (project_root / "config.yaml").read_text(encoding="utf-8")
+    )
+    data_dir = tmp_path / "data"
+    logs_dir = tmp_path / "logs"
+    data_dir.mkdir()
+    logs_dir.mkdir()
+    config["runtime"]["data_dir"] = str(data_dir)
+    config["runtime"]["logs_dir"] = str(logs_dir)
+    config["runtime"]["watch_paths"] = [str(data_dir)]
+    config["persistence"]["db_path"] = str(data_dir / "runtime.db")
+    config["scoring"]["weights"]["rapid_encryption"] = 12.5
+
+    config_path = tmp_path / "custom-weights.yaml"
+    config_path.write_text(
+        yaml.safe_dump(config, sort_keys=False),
+        encoding="utf-8",
+    )
+
+    runtime = RuntimeManager(config_path=config_path)
+
+    try:
+        runtime._create_detection_pipeline()
+
+        for index in range(20):
+            runtime._handle_file_event(
+                {
+                    "action": "modified",
+                    "path": str(data_dir / f"document_{index}.txt"),
+                    "timestamp": 1_800_000_000 + index,
+                    "metadata": {"entropy": 3.0},
+                }
+            )
+
+        assert runtime._detector.scoring_weights["rapid_encryption"] == 12.5
+        assert runtime._last_analysis.score.rapid_encryption == pytest.approx(12.5)
+        assert runtime._last_analysis.score.total == pytest.approx(12.5)
+    finally:
+        RuntimeManager.reset_singleton()
+
+
+def test_configured_shutdown_timeout_is_used_for_process_join(runtime):
+    class ThreadStub:
+        timeout = None
+
+        def join(self, timeout):
+            self.timeout = timeout
+
+        def is_alive(self):
+            return False
+
+    configured_timeout = 0.375
+    runtime._config.shutdown_timeout = configured_timeout
+    thread = ThreadStub()
+    runtime._process_thread = thread
+    runtime._process_monitor = object()
+
+    assert runtime._stop_process_monitor() is True
+    assert thread.timeout == pytest.approx(configured_timeout)
+
+
+def test_incident_attribution_prefers_exact_event_ids_for_reused_paths(runtime):
+    database = runtime._database
+    old_id = database.record_file_event(
+        {"path": "C:/sandbox/reused.txt", "action": "modified"}
+    )
+    burst_id = database.record_file_event(
+        {"path": "C:/sandbox/reused.txt", "action": "modified"}
+    )
+
+    with database.engine.begin() as connection:
+        connection.exec_driver_sql(
+            "UPDATE events SET created_at = ? WHERE id = ?",
+            (datetime.now(timezone.utc) - timedelta(days=2), old_id),
+        )
+
+    attributed = runtime._attribute_events_to_incident(
+        77,
+        ["C:/sandbox/reused.txt"],
+        event_ids=[burst_id],
+        since=datetime.now(timezone.utc) - timedelta(minutes=1),
+        until=datetime.now(timezone.utc),
+    )
+
+    assert attributed == 1
+    assert database.get_incident(77) is None
+    assert database.list_events_for_incident(77, limit=10)[0]["id"] == burst_id
+    old_event = next(
+        event
+        for event in database.list_events(limit=10)
+        if event["id"] == old_id
+    )
+    assert old_event["incident_id"] is None
 
 
 def test_repeated_start_is_invalid(runtime):
@@ -1483,6 +1583,72 @@ def test_runtime_process_monitor_loop_exception(
     runtime._process_monitor_loop()
 
     assert runtime._subsystems["process_monitor"]["healthy"] is False
+
+
+@pytest.mark.parametrize(
+    "recovery", ["batch", "fallback", "empty", "partial", "write_error", "analysis_error"]
+)
+def test_process_monitor_health_requires_confirmed_recovery(runtime, monkeypatch, recovery):
+    from types import SimpleNamespace
+    from sqlalchemy.exc import OperationalError
+
+    snapshot = SimpleNamespace(pid=123, cpu_percent=0.0)
+    lock_error = OperationalError("INSERT INTO processes", {}, Exception("database is locked"))
+
+    class Monitor:
+        def capture_all(self):
+            return [] if recovery == "empty" else [snapshot]
+
+    class DB:
+        attempts = 0
+        persisted = []
+
+        def record_processes(self, snapshots):
+            self.attempts += 1
+            if self.attempts == 1 or recovery == "write_error":
+                raise lock_error
+            if recovery in {"fallback", "partial"}:
+                raise RuntimeError("batch unavailable")
+            self.persisted.extend(snapshots)
+            return len(snapshots)
+
+        def record_process(self, snapshot):
+            if recovery == "partial":
+                raise RuntimeError("record failed")
+            self.persisted.append(snapshot)
+
+    class Detector:
+        last_analysis = None
+
+        def update_processes(self, snapshots):
+            if recovery == "analysis_error":
+                raise RuntimeError("analysis failed")
+
+    db = DB()
+    runtime.state = RuntimeStatus.RUNNING
+    runtime._database = db
+    runtime._process_monitor = Monitor()
+    runtime._detector = Detector()
+    monkeypatch.setattr(runtime._process_stop, "wait", lambda _: True)
+
+    if recovery == "empty":
+        runtime._register_subsystem("process_monitor", healthy=False, critical=False,
+                                    details={"error": "database is locked"})
+    else:
+        runtime._process_monitor_loop()
+    assert runtime._subsystems["process_monitor"]["healthy"] is False
+    assert "database is locked" in runtime._subsystems["process_monitor"]["details"]["error"]
+
+    runtime._process_monitor_loop()
+    health = runtime._subsystems["process_monitor"]
+    if recovery in {"batch", "fallback"}:
+        assert db.persisted == [snapshot]
+        assert health == {"name": "process_monitor", "healthy": True,
+                          "critical": False, "details": {}}
+        assert runtime.health_status()["healthy"] is True
+    else:
+        assert health["healthy"] is False
+        assert "error" in health["details"]
 
 
 def test_runtime_start_failure_cleanup_branches(runtime, monkeypatch):

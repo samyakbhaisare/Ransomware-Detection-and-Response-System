@@ -1,8 +1,10 @@
 ﻿from __future__ import annotations
 
 import hashlib
+import math
+import os
 from dataclasses import dataclass, field
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Any
 
 import yaml
@@ -34,6 +36,21 @@ class ConfigConflictError(RuntimeError):
     ``config.yaml``. Writing it back would silently discard whatever the other
     writer changed, so :meth:`RuntimeConfig.save` refuses instead.
     """
+
+
+def _path_value(value: str | os.PathLike[str]) -> Path:
+    """Parse configured paths using separators portable across platforms."""
+    text = os.fspath(value)
+
+    if os.name != "nt":
+        windows_path = PureWindowsPath(text)
+        if windows_path.is_absolute():
+            raise ValueError(
+                f"Windows absolute path is not valid on this platform: {text}"
+            )
+        text = text.replace("\\", "/")
+
+    return Path(text)
 
 
 def _yaml_scalar(value: Any) -> str:
@@ -111,7 +128,34 @@ class RuntimeConfig:
         if self.watch_paths:
             return list(self.watch_paths)
 
-        return [self.data_dir]
+        return [self.resolved_data_dir]
+
+    def _resolve_path(self, value: Path | None) -> Path | None:
+        if value is None:
+            return None
+
+        candidate = _path_value(value)
+        if candidate.is_absolute():
+            return candidate
+
+        base = (
+            Path(self.config_path).resolve().parent
+            if self.config_path is not None
+            else Path.cwd()
+        )
+        return base / candidate
+
+    @property
+    def resolved_data_dir(self) -> Path:
+        return self._resolve_path(self.data_dir) or self.data_dir
+
+    @property
+    def resolved_logs_dir(self) -> Path:
+        return self._resolve_path(self.logs_dir) or self.logs_dir
+
+    @property
+    def resolved_db_path(self) -> Path | None:
+        return self._resolve_path(self.db_path)
 
     @classmethod
     def load(
@@ -174,10 +218,14 @@ class RuntimeConfig:
                 "subsystems must be a list"
             )
 
+        # All relative filesystem paths are anchored to the config file,
+        # independent of the process working directory.
+        config_root = path.resolve().parent
+
         data_root = (
-            Path(data_dir)
+            _path_value(data_dir)
             if data_dir is not None
-            else Path(
+            else _path_value(
                 runtime_section.get(
                     "data_dir",
                     "data",
@@ -186,9 +234,9 @@ class RuntimeConfig:
         )
 
         logs_root = (
-            Path(logs_dir)
+            _path_value(logs_dir)
             if logs_dir is not None
-            else Path(
+            else _path_value(
                 runtime_section.get(
                     "logs_dir",
                     "logs",
@@ -199,6 +247,13 @@ class RuntimeConfig:
         configured_db_path = persistence_section.get(
             "db_path"
         )
+        persistence_enabled = persistence_section.get(
+            "enabled",
+            True,
+        )
+
+        if not isinstance(persistence_enabled, bool):
+            raise ValueError("persistence.enabled must be a boolean")
 
         # "which folders to watch" (Build Guide Phase 1). Relative entries are
         # resolved against the configuration file so their meaning does not
@@ -227,11 +282,6 @@ class RuntimeConfig:
         watch_paths: list[Path] = []
         watch_paths_raw: list[str] = []
 
-        # Resolve against the configuration file's absolute directory so a
-        # relative entry means the same folder no matter what the process
-        # working directory is.
-        config_root = path.resolve().parent
-
         for entry in configured_watch_paths:
             text = str(entry).strip()
 
@@ -240,7 +290,7 @@ class RuntimeConfig:
 
             watch_paths_raw.append(text)
 
-            candidate = Path(text)
+            candidate = _path_value(text)
 
             if not candidate.is_absolute():
                 candidate = config_root / candidate
@@ -248,10 +298,10 @@ class RuntimeConfig:
             watch_paths.append(candidate)
 
         database_path = (
-            Path(db_path)
+            _path_value(db_path)
             if db_path is not None
             else (
-                Path(configured_db_path)
+                _path_value(configured_db_path)
                 if configured_db_path is not None
                 else data_root / "rdrs.db"
             )
@@ -310,12 +360,7 @@ class RuntimeConfig:
                     "INFO",
                 )
             ).upper(),
-            persistence_enabled=bool(
-                persistence_section.get(
-                    "enabled",
-                    True,
-                )
-            ),
+            persistence_enabled=persistence_enabled,
             subsystems=list(subsystems),
             config_path=str(path),
             detection_thresholds=detection_thresholds,
@@ -369,7 +414,7 @@ class RuntimeConfig:
                 )
 
             try:
-                target[key] = float(value)
+                number = float(value)
             except (
                 TypeError,
                 ValueError,
@@ -378,22 +423,33 @@ class RuntimeConfig:
                     f"{name}.{key} must be numeric"
                 ) from exc
 
+            if not math.isfinite(number):
+                raise ValueError(
+                    f"{name}.{key} must be finite"
+                )
+
+            target[key] = number
+
     def validate(self) -> None:
         if not self.name.strip():
             raise ValueError(
                 "Runtime name cannot be empty"
             )
 
-        if self.shutdown_timeout <= 0:
+        if not isinstance(self.persistence_enabled, bool):
+            raise ValueError("persistence.enabled must be a boolean")
+
+        if (
+            not math.isfinite(self.shutdown_timeout)
+            or self.shutdown_timeout <= 0
+        ):
             raise ValueError(
                 "shutdown_timeout must be positive"
             )
 
         if self.log_level not in {
-            "TRACE",
             "DEBUG",
             "INFO",
-            "SUCCESS",
             "WARNING",
             "ERROR",
             "CRITICAL",
@@ -414,18 +470,19 @@ class RuntimeConfig:
         self._validate_detection()
         self._validate_scoring()
 
-        self.data_dir.mkdir(
+        self.resolved_data_dir.mkdir(
             parents=True,
             exist_ok=True,
         )
 
-        self.logs_dir.mkdir(
+        self.resolved_logs_dir.mkdir(
             parents=True,
             exist_ok=True,
         )
 
-        if self.db_path is not None:
-            self.db_path.parent.mkdir(
+        resolved_db_path = self.resolved_db_path
+        if resolved_db_path is not None:
+            resolved_db_path.parent.mkdir(
                 parents=True,
                 exist_ok=True,
             )
@@ -440,6 +497,12 @@ class RuntimeConfig:
                 "Detection thresholds must contain "
                 "the complete configured signal set"
             )
+
+        for key, value in self.detection_thresholds.items():
+            if not math.isfinite(value):
+                raise ValueError(
+                    f"detection.{key} must be finite"
+                )
 
         if (
             self.detection_thresholds[
@@ -491,6 +554,12 @@ class RuntimeConfig:
                 "Scoring weights must contain the "
                 "complete configured signal set"
             )
+
+        for key, weight in self.scoring_weights.items():
+            if not math.isfinite(weight):
+                raise ValueError(
+                    f"scoring.weights.{key} must be finite"
+                )
 
         for key, weight in self.scoring_weights.items():
             if weight < 0:

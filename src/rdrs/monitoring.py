@@ -4,7 +4,7 @@ import hashlib
 import mimetypes
 import time
 from collections.abc import Callable, Iterator, Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from fnmatch import fnmatch
 from pathlib import Path
 from typing import Any
@@ -40,6 +40,8 @@ class FileEvent(Mapping[str, Any]):
     previous_path: str | None = None
     new_path: str | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
+    event_id: int | None = None
+    persistence_error: str | None = None
 
     def _as_dict(self) -> dict[str, Any]:
         return {
@@ -50,6 +52,8 @@ class FileEvent(Mapping[str, Any]):
             "previous_path": self.previous_path,
             "new_path": self.new_path,
             "metadata": self.metadata,
+            "event_id": self.event_id,
+            "persistence_error": self.persistence_error,
         }
 
     def __getitem__(self, key: str) -> Any:
@@ -432,15 +436,16 @@ class DirectoryMonitor:
         self.observer.start()
         self._running = True
 
-    def stop(self) -> None:
+    def stop(self, timeout: float = 5.0) -> bool:
+        if self._running or self.observer.is_alive():
+            self.observer.stop()
+            self.observer.join(timeout=max(0.0, float(timeout)))
+
+        self._running = self.observer.is_alive()
         if not self._running:
-            return
+            self._handler = None
 
-        self.observer.stop()
-        self.observer.join(timeout=5)
-
-        self._running = False
-        self._handler = None
+        return not self._running
 
     def scan(self) -> list[Path]:
         """Return real files under the monitored directory."""
@@ -476,16 +481,24 @@ class DirectoryMonitor:
     def _handle_event(self, event: FileEvent) -> None:
         self.event_count += 1
 
-        self._persist(event)
+        event_id, persistence_error = self._persist(event)
+        delivered_event = replace(
+            event,
+            event_id=event_id,
+            persistence_error=persistence_error,
+        )
 
         if self.callback is not None:
-            self.callback(event)
+            self.callback(delivered_event)
 
-    def _persist(self, event: FileEvent) -> None:
-        """Persist the real event using the DatabaseManager contract."""
+    def _persist(
+        self,
+        event: FileEvent,
+    ) -> tuple[int | None, str | None]:
+        """Persist one event and return its row id or the final failure."""
 
         if self.database is None:
-            return
+            return None, None
 
         method = getattr(
             self.database,
@@ -494,7 +507,7 @@ class DirectoryMonitor:
         )
 
         if method is None:
-            return
+            return None, None
 
         payload = {
             "path": event.path,
@@ -516,15 +529,27 @@ class DirectoryMonitor:
         # builtin types caught previously. Retry briefly, then give up quietly.
         import time as _time
 
+        last_error: Exception | None = None
+
         for attempt in range(3):
             try:
-                method(payload)
-                return
-            except Exception:
+                record_id = method(payload)
+                return (
+                    int(record_id) if record_id is not None else None,
+                    None,
+                )
+            except Exception as exc:
+                last_error = exc
                 if attempt == 2:
-                    return
+                    break
 
                 _time.sleep(0.05 * (attempt + 1))
+
+        return None, (
+            f"{type(last_error).__name__}: {last_error}"
+            if last_error is not None
+            else "event persistence failed without an exception"
+        )
 
     @property
     def running(self) -> bool:
@@ -703,8 +728,8 @@ class RealtimeFileMonitor:
     def start(self) -> None:
         self.monitor.start()
 
-    def stop(self) -> None:
-        self.monitor.stop()
+    def stop(self, timeout: float = 5.0) -> bool:
+        return self.monitor.stop(timeout=timeout)
 
     @property
     def running(self) -> bool:

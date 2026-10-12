@@ -92,6 +92,7 @@ class RuntimeManager:
         # for each of its events. Cleared whenever the analysis returns to
         # NORMAL, which is what marks the end of a burst.
         self._responded_levels: set[str] = set()
+        self._response_lock = threading.Lock()
 
         self._subsystems: dict[str, dict[str, Any]] = {}
 
@@ -207,7 +208,11 @@ class RuntimeManager:
         # ``getattr`` keeps this working for the lightweight config stand-ins
         # the tests pass in, which only define the fields they exercise.
         self._database = DatabaseManager(
-            self._config.db_path
+            getattr(
+                self._config,
+                "resolved_db_path",
+                getattr(self._config, "db_path", None),
+            )
             if getattr(
                 self._config,
                 "persistence_enabled",
@@ -230,7 +235,7 @@ class RuntimeManager:
             self._pending_logs_dir
             or getattr(
                 self._config,
-                "logs_dir",
+                "resolved_logs_dir",
                 None,
             )
             or Path("logs")
@@ -417,7 +422,15 @@ class RuntimeManager:
                     pass
 
             self._database = DatabaseManager(
-                self._config.db_path if durable else None
+                (
+                    getattr(
+                        self._config,
+                        "resolved_db_path",
+                        getattr(self._config, "db_path", None),
+                    )
+                    if durable
+                    else None
+                )
             )
 
         # Re-initialise only when there is no live engine. `initialize()` always
@@ -467,7 +480,11 @@ class RuntimeManager:
             critical=True,
             details={
                 "db_path": str(
-                    self._config.db_path
+                    getattr(
+                        self._config,
+                        "resolved_db_path",
+                        getattr(self._config, "db_path", None),
+                    )
                 ),
             },
         )
@@ -486,13 +503,23 @@ class RuntimeManager:
             )
             or {}
         )
+        scoring_weights = dict(
+            getattr(
+                self._config,
+                "scoring_weights",
+                {},
+            )
+            or {}
+        )
 
         self._detector = BurstDetectionEngine(
             thresholds=thresholds or None,
+            scoring_weights=scoring_weights or None,
         )
 
         # A fresh pipeline starts with no burst in progress.
-        self._responded_levels.clear()
+        with self._response_lock:
+            self._responded_levels.clear()
 
         if self._database is None:
             raise RuntimeError(
@@ -509,7 +536,11 @@ class RuntimeManager:
         )
 
         quarantine_dir = (
-            self._config.data_dir
+            getattr(
+                self._config,
+                "resolved_data_dir",
+                self._config.data_dir,
+            )
             / "quarantine"
         )
 
@@ -572,6 +603,32 @@ class RuntimeManager:
             },
         )
 
+        persistence_error = (
+            event.get("persistence_error")
+            if isinstance(event, dict)
+            else getattr(event, "persistence_error", None)
+        )
+
+        if persistence_error:
+            details = {
+                "error": str(persistence_error),
+                "path": (
+                    event.get("path")
+                    if isinstance(event, dict)
+                    else getattr(event, "path", None)
+                ),
+            }
+            self.logger.error(
+                "rdrs.file.event.persistence.failed",
+                extra={"details": details},
+            )
+            self._op_log(
+                "errors",
+                "rdrs.file.event.persistence.failed",
+                level=logging.ERROR,
+                details=details,
+            )
+
         try:
             ingest = getattr(detector, "ingest", None) or getattr(detector, "ingest_event", None)
             if ingest is None:
@@ -589,7 +646,8 @@ class RuntimeManager:
                 # The burst has cleared. Forget what was already responded to
                 # so a genuinely new burst is handled instead of being
                 # suppressed as a continuation of the old one.
-                self._responded_levels.clear()
+                with self._response_lock:
+                    self._responded_levels.clear()
                 return
 
             # ``BurstAnalysis`` carries ``detected``/``level``/``signals``;
@@ -611,9 +669,6 @@ class RuntimeManager:
             # which is what lets the burst create its incident. Because
             # CRITICAL is recorded at most once per burst, at most one
             # incident is ever created per burst.
-            if analysis_level in self._responded_levels:
-                return
-
             response = self._response
 
             if response is None:
@@ -621,13 +676,16 @@ class RuntimeManager:
                     "Incident response engine is not initialized"
                 )
 
+            if not self._claim_response_level(analysis_level):
+                return
+
             score_data = getattr(analysis, "score", None)
 
             fired_signals = set(
                 self._active_signals(analysis)
             )
 
-            def signal_value(name: str) -> int:
+            def signal_value(name: str) -> float:
                 """Return the weighted contribution of one signal.
 
                 The scoring weights come from the detection engine's own
@@ -642,9 +700,9 @@ class RuntimeManager:
                     )
 
                     if value:
-                        return int(value)
+                        return float(value)
 
-                    return int(
+                    return float(
                         getattr(
                             analysis,
                             name,
@@ -652,7 +710,7 @@ class RuntimeManager:
                         )
                     )
 
-                return 0
+                return 0.0
 
             response_score = ThreatScore(
                 rapid_encryption=signal_value("rapid_encryption"),
@@ -662,10 +720,21 @@ class RuntimeManager:
                 unknown_program=signal_value("unknown_program"),
             )
 
+            suspect_process = analysis.suspect_process
+            suspect_process_attribution = (
+                "heuristic: highest CPU process in the host snapshot; "
+                "not causally attributed to file operations"
+                if suspect_process
+                else None
+            )
+
             result = response.process(
                 response_score,
                 affected_files=analysis.affected_files,
-                suspect_process=analysis.suspect_process,
+                suspect_process=suspect_process,
+                suspect_process_attribution=(
+                    suspect_process_attribution
+                ),
                 reason=self._build_detection_reason(
                     analysis
                 ),
@@ -675,9 +744,33 @@ class RuntimeManager:
             )
 
             if result.incident_id is not None:
+                affected_paths = set(analysis.affected_files)
+                event_ids = [
+                    int(item["event_id"])
+                    for item in analysis.events
+                    if item.get("event_id") is not None
+                    and affected_paths.intersection(
+                        str(item.get(key))
+                        for key in ("path", "previous_path", "new_path")
+                        if item.get(key)
+                    )
+                ]
+                detector = self._detector
+                since = (
+                    detector.window_started_at
+                    if detector is not None
+                    else None
+                )
+                until = datetime.fromtimestamp(
+                    analysis.timestamp,
+                    tz=timezone.utc,
+                )
                 self._attribute_events_to_incident(
                     result.incident_id,
                     list(analysis.affected_files),
+                    event_ids=event_ids,
+                    since=since,
+                    until=until,
                 )
 
             self.logger.warning(
@@ -696,6 +789,9 @@ class RuntimeManager:
                         ),
                         "suspect_process": (
                             analysis.suspect_process
+                        ),
+                        "suspect_process_attribution": (
+                            suspect_process_attribution
                         ),
                         "score_id": result.score_id,
                         "alert_id": result.alert_id,
@@ -718,6 +814,9 @@ class RuntimeManager:
                 ),
                 "suspect_process": (
                     analysis.suspect_process
+                ),
+                "suspect_process_attribution": (
+                    suspect_process_attribution
                 ),
                 "score_id": result.score_id,
                 "alert_id": result.alert_id,
@@ -748,14 +847,8 @@ class RuntimeManager:
                     },
                 )
 
-            # Record this severity as responded to. The detector's window is
-            # deliberately NOT cleared here: wiping it destroyed the evidence
-            # the burst had accumulated, so a burst climbing towards CRITICAL
-            # was reset back to zero and never reached the incident threshold.
-            # The sliding window ages events out on its own, and
-            # ``_responded_levels`` prevents a repeat response at the same
-            # severity.
-            self._responded_levels.add(analysis_level)
+            # The severity was claimed atomically before response processing.
+            # The detector window remains intact so a burst may still escalate.
 
         except Exception as exc:
             self.logger.exception(
@@ -784,6 +877,14 @@ class RuntimeManager:
                     "error": str(exc),
                 },
             )
+
+    def _claim_response_level(self, level: str) -> bool:
+        """Atomically claim one response per severity in the active burst."""
+        with self._response_lock:
+            if level in self._responded_levels:
+                return False
+            self._responded_levels.add(level)
+            return True
 
     @staticmethod
     def _analysis_level(analysis: BurstAnalysis) -> str:
@@ -903,6 +1004,10 @@ class RuntimeManager:
         self,
         incident_id: int,
         affected_files: list[str] | None = None,
+        *,
+        event_ids: list[int] | None = None,
+        since: datetime | None = None,
+        until: datetime | None = None,
     ) -> int:
         """Attach the burst's events to the incident just created.
 
@@ -925,6 +1030,23 @@ class RuntimeManager:
         if database is None:
             return 0
 
+        if event_ids:
+            attach_by_id = getattr(
+                database,
+                "attach_events_to_incident",
+                None,
+            )
+            if attach_by_id is not None:
+                try:
+                    # Stable event identities take precedence over heuristic
+                    # path matching. A partial identity match is not broadened
+                    # to unrelated historical rows.
+                    return int(
+                        attach_by_id(incident_id, event_ids)
+                    )
+                except (RuntimeError, OSError, ValueError):
+                    return 0
+
         by_paths = getattr(
             database,
             "attach_events_to_incident_by_paths",
@@ -943,6 +1065,8 @@ class RuntimeManager:
                 attributed = by_paths(
                     incident_id,
                     list(affected_files),
+                    since=since,
+                    until=until,
                 )
             except (RuntimeError, OSError, ValueError):
                 attributed = 0
@@ -964,6 +1088,7 @@ class RuntimeManager:
                 attributed = by_window(
                     incident_id,
                     since=since,
+                    until=until,
                 )
             except (RuntimeError, OSError, ValueError):
                 return 0
@@ -1061,6 +1186,7 @@ class RuntimeManager:
                 continue
 
             try:
+                capture_persisted = False
                 snapshots = (
                     process_monitor.capture_all()
                 )
@@ -1077,7 +1203,7 @@ class RuntimeManager:
 
                     if record_many is not None:
                         try:
-                            record_many(snapshots)
+                            capture_persisted = record_many(snapshots) == len(snapshots)
                         except (
                             RuntimeError,
                             OSError,
@@ -1085,6 +1211,7 @@ class RuntimeManager:
                             record_many = None
 
                     if record_many is None:
+                        capture_persisted = True
                         for snapshot in snapshots:
                             try:
                                 database.record_process(
@@ -1094,6 +1221,7 @@ class RuntimeManager:
                                 RuntimeError,
                                 OSError,
                             ):
+                                capture_persisted = False
                                 continue
 
                 detector = self._detector
@@ -1134,6 +1262,17 @@ class RuntimeManager:
 
                     with self._analysis_lock:
                         self._last_analysis = detector.last_analysis
+
+                # Clear a stale failure only after a complete persisted capture
+                # and successful analysis, not an empty or failed write cycle.
+                if capture_persisted and not self._subsystems.get(
+                    "process_monitor", {}
+                ).get("healthy", True):
+                    self._register_subsystem(
+                        "process_monitor",
+                        healthy=True,
+                        critical=False,
+                    )
 
             except Exception as exc:
                 self.logger.warning(
@@ -1196,16 +1335,34 @@ class RuntimeManager:
 
         self._process_thread.start()
 
-    def _stop_process_monitor(self) -> None:
+    def _shutdown_timeout_seconds(self) -> float:
+        """Return the configured maximum shutdown wait for one runtime stop."""
+        timeout = getattr(self._config, "shutdown_timeout", 10.0)
+        return max(0.0, float(timeout))
+
+    def _stop_process_monitor(
+        self,
+        timeout: float | None = None,
+    ) -> bool:
         self._process_stop.set()
 
         thread = self._process_thread
 
         if thread is not None:
-            thread.join(timeout=10)
+            thread.join(
+                timeout=(
+                    self._shutdown_timeout_seconds()
+                    if timeout is None
+                    else max(0.0, float(timeout))
+                )
+            )
+
+            if thread.is_alive():
+                return False
 
         self._process_thread = None
         self._process_monitor = None
+        return True
 
     def start(self) -> dict[str, Any]:
         if self.state in {
@@ -1253,6 +1410,9 @@ class RuntimeManager:
                 raise RuntimeError(
                     "Configuration file not found or invalid"
                 )
+
+            if not getattr(self, "_operational_loggers", None):
+                self._operational_loggers = self._init_rotating_logs()
 
             self._init_persistence()
             self._init_default_subsystems()
@@ -1361,10 +1521,18 @@ class RuntimeManager:
                         self._subsystems.keys()
                     ),
                     "data_dir": str(
-                        self._config.data_dir
+                        getattr(
+                            self._config,
+                            "resolved_data_dir",
+                            self._config.data_dir,
+                        )
                     ) if self._config else None,
                     "logs_dir": str(
-                        self._config.logs_dir
+                        getattr(
+                            self._config,
+                            "resolved_logs_dir",
+                            self._config.logs_dir,
+                        )
                     ) if self._config else None,
                 },
             )
@@ -1387,18 +1555,27 @@ class RuntimeManager:
             )
 
             try:
-                self._stop_process_monitor()
+                process_stopped = self._stop_process_monitor(
+                    timeout=self._shutdown_timeout_seconds()
+                )
             except Exception:
-                pass
+                process_stopped = False
 
+            monitors_stopped = True
             for monitor in self._monitors:
                 try:
-                    monitor.stop()
+                    monitors_stopped = (
+                        monitor.stop(
+                            timeout=self._shutdown_timeout_seconds()
+                        )
+                        and monitors_stopped
+                    )
                 except Exception:
-                    pass
+                    monitors_stopped = False
 
-            self._monitors = []
-            self._monitor = None
+            if process_stopped and monitors_stopped:
+                self._monitors = []
+                self._monitor = None
 
             if self._database is not None:
                 try:
@@ -1436,10 +1613,27 @@ class RuntimeManager:
         )
 
         try:
-            self._stop_process_monitor()
+            deadline = (
+                time.monotonic()
+                + self._shutdown_timeout_seconds()
+            )
+            process_stopped = self._stop_process_monitor(
+                timeout=max(0.0, deadline - time.monotonic())
+            )
 
+            monitors_stopped = True
             for monitor in self._monitors:
-                monitor.stop()
+                monitors_stopped = (
+                    monitor.stop(
+                        timeout=max(0.0, deadline - time.monotonic())
+                    )
+                    and monitors_stopped
+                )
+
+            if not process_stopped or not monitors_stopped:
+                raise RuntimeError(
+                    "Runtime shutdown timed out while waiting for monitor threads"
+                )
 
             self._monitors = []
             self._monitor = None
@@ -1498,13 +1692,29 @@ class RuntimeManager:
             ) from exc
 
     def force_stop(self) -> None:
-        self._stop_process_monitor()
+        deadline = time.monotonic() + self._shutdown_timeout_seconds()
+        process_stopped = self._stop_process_monitor(
+            timeout=max(0.0, deadline - time.monotonic())
+        )
 
+        monitors_stopped = True
         for monitor in self._monitors:
             try:
-                monitor.stop()
+                monitors_stopped = (
+                    monitor.stop(
+                        timeout=max(0.0, deadline - time.monotonic())
+                    )
+                    and monitors_stopped
+                )
             except Exception:
-                pass
+                monitors_stopped = False
+
+        if not process_stopped or not monitors_stopped:
+            # Keep shared DB/log resources alive while a writer thread is still
+            # running. A later close/force_stop may complete the cleanup.
+            self.state = RuntimeStatus.FAILED
+            self._shutdown_requested = True
+            return
 
         self._monitors = []
         self._monitor = None
@@ -1536,7 +1746,8 @@ class RuntimeManager:
             self._last_analysis = None
 
         # A restart must be able to respond to a burst afresh.
-        self._responded_levels.clear()
+        with self._response_lock:
+            self._responded_levels.clear()
 
         self.started_at = None
         self._subsystems = {}
@@ -1544,13 +1755,28 @@ class RuntimeManager:
         self.state = RuntimeStatus.STOPPED
 
     def _cleanup(self) -> None:
-        self._stop_process_monitor()
+        deadline = time.monotonic() + self._shutdown_timeout_seconds()
+        if not self._stop_process_monitor(
+            timeout=max(0.0, deadline - time.monotonic())
+        ):
+            self.state = RuntimeStatus.FAILED
+            return
 
+        monitors_stopped = True
         for monitor in self._monitors:
             try:
-                monitor.stop()
+                monitors_stopped = (
+                    monitor.stop(
+                        timeout=max(0.0, deadline - time.monotonic())
+                    )
+                    and monitors_stopped
+                )
             except Exception:
-                pass
+                monitors_stopped = False
+
+        if not monitors_stopped:
+            self.state = RuntimeStatus.FAILED
+            return
 
         self._monitors = []
         self._monitor = None

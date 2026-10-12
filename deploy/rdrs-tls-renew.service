@@ -1,0 +1,8 @@
+[Unit]
+Description=Renew the RDRS short-lived IP TLS certificate
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh /opt/rdrs/deploy/renew-tls.sh

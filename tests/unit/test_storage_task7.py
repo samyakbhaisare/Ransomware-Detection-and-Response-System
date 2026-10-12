@@ -370,6 +370,27 @@ def test_record_file_event_returns_the_row_id_and_persists_fields(database):
     assert stored["incident_id"] is None
 
 
+def test_record_file_event_preserves_the_observed_timestamp(database):
+    observed = datetime(2026, 10, 4, 12, 34, 56, 789000, tzinfo=timezone.utc)
+    event_id = database.record_file_event(
+        {
+            "path": "C:/sandbox/timed.txt",
+            "action": "modified",
+            "timestamp": observed.timestamp(),
+        }
+    )
+
+    stored = next(
+        event
+        for event in database.list_events(limit=10)
+        if event["id"] == event_id
+    )
+
+    assert datetime.fromisoformat(
+        stored["created_at"].replace("Z", "+00:00")
+    ) == observed
+
+
 def test_record_file_event_accepts_an_explicit_incident_id(database):
     database.record_file_event(
         {
@@ -445,6 +466,43 @@ def test_attach_events_by_paths_matches_every_path_column(database):
     # Empty path list and blank entries are no-ops.
     assert database.attach_events_to_incident_by_paths(8, []) == 0
     assert database.attach_events_to_incident_by_paths(8, ["", None]) == 0
+
+
+def test_attach_events_by_paths_respects_detection_window(database):
+    now = datetime.now(timezone.utc)
+    old_id = database.record_file_event(
+        {
+            "path": "C:/sandbox/reused.txt",
+            "action": "modified",
+            "timestamp": now - timedelta(days=2),
+        }
+    )
+    burst_id = database.record_file_event(
+        {
+            "path": "C:/sandbox/reused.txt",
+            "action": "modified",
+            "timestamp": now,
+        }
+    )
+
+    attributed = database.attach_events_to_incident_by_paths(
+        17,
+        ["C:/sandbox/reused.txt"],
+        since=now - timedelta(minutes=1),
+        until=now + timedelta(seconds=1),
+    )
+
+    assert attributed == 1
+    assert [
+        event["id"]
+        for event in database.list_events_for_incident(17, limit=10)
+    ] == [burst_id]
+    old_event = next(
+        event
+        for event in database.list_events(limit=10)
+        if event["id"] == old_id
+    )
+    assert old_event["incident_id"] is None
 
 
 def test_attach_events_by_window_respects_bounds(database):
@@ -676,3 +734,92 @@ def test_iso_normalizes_naive_and_aware_datetimes():
     assert DatabaseManager._iso(None) is None  # noqa: SLF001
     assert DatabaseManager._iso(naive) == "2026-01-02T03:04:05+00:00"  # noqa: SLF001
     assert DatabaseManager._iso(aware) == "2026-01-02T03:04:05+00:00"  # noqa: SLF001
+
+
+def test_process_count_migrates_existing_history_and_survives_restart(db_path):
+    from rdrs.telemetry import ProcessTelemetry
+
+    manager = DatabaseManager(db_path)
+    manager.initialize()
+    manager.record_processes([ProcessTelemetry(pid=1, name="a"), ProcessTelemetry(pid=2, name="b")])
+    manager.close()
+    # Reproduce a database created before the exact aggregate existed.
+    with sqlite3.connect(db_path) as connection:
+        connection.execute("DROP TRIGGER rdrs_process_count_insert")
+        connection.execute("DROP TRIGGER rdrs_process_count_delete")
+        connection.execute("DROP TABLE rdrs_row_counts")
+    manager.initialize()
+    assert manager.count_records("processes") == 2
+    manager.close()
+    with sqlite3.connect(db_path) as connection:
+        connection.execute("INSERT INTO processes (pid, name, command_line, cwd, cpu_percent, memory_rss, memory_percent, disk_write_bytes, executable_path, captured_at) VALUES (3, 'external', '', '', 0, 0, 0, 0, '', CURRENT_TIMESTAMP)")
+    manager.initialize()
+    assert manager.count_records_many(["processes", "process_telemetry"] ) == {
+        "processes": 3, "process_telemetry": 3,
+    }
+    with manager.engine.connect() as connection:
+        assert connection.exec_driver_sql("SELECT COUNT(*) FROM processes").scalar_one() == 3
+    manager.close()
+
+
+def test_process_count_tracks_sql_changes_and_rollback(database):
+    from rdrs.telemetry import ProcessTelemetry
+
+    database.record_processes([ProcessTelemetry(pid=1, name="a"), ProcessTelemetry(pid=2, name="b")])
+    with database.engine.connect() as connection:
+        connection.exec_driver_sql("DELETE FROM processes WHERE pid = 1")
+        connection.exec_driver_sql("INSERT INTO processes (pid, name, command_line, cwd, cpu_percent, memory_rss, memory_percent, disk_write_bytes, executable_path, captured_at) VALUES (3, 'rolled back', '', '', 0, 0, 0, 0, '', CURRENT_TIMESTAMP)")
+        assert connection.exec_driver_sql("SELECT row_count FROM rdrs_row_counts").scalar_one() == 2
+        connection.rollback()
+    with database.engine.begin() as connection:
+        connection.exec_driver_sql("DELETE FROM processes WHERE pid = 1")
+        connection.exec_driver_sql("UPDATE processes SET name = 'changed' WHERE pid = 2")
+    assert database.count_records("processes") == 1
+    with database.engine.connect() as connection:
+        assert connection.exec_driver_sql("SELECT COUNT(*) FROM processes").scalar_one() == 1
+
+
+def test_process_summary_uses_exact_aggregate_without_history_scan(database):
+    from sqlalchemy import event
+    from rdrs.telemetry import ProcessTelemetry
+
+    database.record_process(ProcessTelemetry(pid=17, name="worker"))
+    statements = []
+
+    def capture(_conn, _cursor, statement, _parameters, _context, _executemany):
+        statements.append(statement)
+
+    event.listen(database.engine, "before_cursor_execute", capture)
+    try:
+        assert database.count_records_many(["events", "processes", "incidents"]) == {
+            "events": 0, "processes": 1, "incidents": 0,
+        }
+    finally:
+        event.remove(database.engine, "before_cursor_execute", capture)
+    assert len(statements) == 1
+    assert "COUNT(*) FROM processes" not in statements[0]
+    assert "rdrs_row_counts" in statements[0]
+
+
+def test_process_count_is_exact_across_concurrent_managers(db_path):
+    from concurrent.futures import ThreadPoolExecutor
+    from rdrs.telemetry import ProcessTelemetry
+
+    def write_batch(pid):
+        manager = DatabaseManager(db_path)
+        manager.initialize()
+        try:
+            manager.record_processes([ProcessTelemetry(pid=pid, name="writer") for _ in range(10)])
+        finally:
+            manager.close()
+
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        list(pool.map(write_batch, [10, 20, 30]))
+    manager = DatabaseManager(db_path)
+    manager.initialize()
+    try:
+        assert manager.count_records("processes") == 30
+        with manager.engine.connect() as connection:
+            assert connection.exec_driver_sql("SELECT COUNT(*) FROM processes").scalar_one() == 30
+    finally:
+        manager.close()

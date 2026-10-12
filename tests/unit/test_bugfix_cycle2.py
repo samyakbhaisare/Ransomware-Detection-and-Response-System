@@ -346,16 +346,23 @@ def test_bug6_frontend_guards_against_duplicate_generation():
 
 
 def test_persist_failure_does_not_escape_the_monitor():
-    """A persist that always fails must not propagate out of _handle_event."""
+    """A failed persist is retried and reported to the event consumer."""
     from rdrs.monitoring import DirectoryMonitor
 
     class ExplodingDatabase:
+        attempts = 0
+
         def record_file_event(self, payload):
+            self.attempts += 1
             raise RuntimeError("cannot commit transaction")
+
+    observed = []
+    database = ExplodingDatabase()
 
     monitor = DirectoryMonitor(
         Path("data"),
-        database=ExplodingDatabase(),
+        callback=observed.append,
+        database=database,
     )
 
     from rdrs.monitoring import FileEvent
@@ -368,6 +375,11 @@ def test_persist_failure_does_not_escape_the_monitor():
 
     # Must not raise: this runs on a watchdog thread.
     monitor._handle_event(event)
+
+    assert database.attempts == 3
+    assert len(observed) == 1
+    assert observed[0].event_id is None
+    assert "cannot commit transaction" in observed[0].persistence_error
 
 
 def test_in_memory_database_is_not_durable(tmp_path):
@@ -394,35 +406,6 @@ def test_file_backed_database_is_durable(tmp_path):
     assert target.is_file()
 
     manager.close()
-
-def test_bug4_in_memory_data_survives_a_stop_start(tmp_path):
-    """With persistence off, stopping must not erase what was collected.
-
-    `initialize()` builds a fresh engine, and for an in-memory database that
-    means an empty one -- so re-initialising on every start wiped the history
-    whenever monitoring was stopped and started.
-    """
-    for persistence in (True, False):
-        RuntimeManager.reset_singleton()
-        runtime = RuntimeManager(
-            config_path=_config(tmp_path / str(persistence), persistence=persistence)
-        )
-
-        try:
-            runtime.start()
-            runtime._database.record_score(88.0, "CRITICAL", "survival probe")
-            before = runtime._database.count_records("scores")
-            assert before == 1
-
-            runtime.stop()
-            runtime.start()
-
-            assert runtime._database.count_records("scores") == before, (
-                "data was lost across stop/start with persistence=%s" % persistence
-            )
-        finally:
-            runtime.stop()
-            RuntimeManager.reset_singleton()
 
 def test_bug4_in_memory_data_survives_a_stop_start(tmp_path):
     """With persistence off, stopping must not erase what was collected.

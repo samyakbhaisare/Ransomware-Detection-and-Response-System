@@ -44,6 +44,7 @@ class IncidentResponseEngine:
         *,
         affected_files: list[str] | None = None,
         suspect_process: dict[str, Any] | None = None,
+        suspect_process_attribution: str | None = None,
         reason: str = "",
         signals: dict[str, Any] | None = None,
     ) -> ResponseResult:
@@ -81,6 +82,7 @@ class IncidentResponseEngine:
             "level": score.level.value,
             "affected_files": affected,
             "suspect_process": suspect_process or {},
+            "suspect_process_attribution": suspect_process_attribution,
             "simulation_mode": self.simulation_mode,
             "signals": resolved_signals,
         }
@@ -210,4 +212,3 @@ class IncidentResponseEngine:
             normalized.append(path)
 
         return sorted(normalized)
-

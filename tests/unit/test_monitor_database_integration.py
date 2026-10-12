@@ -1,4 +1,5 @@
 from pathlib import Path
+from datetime import datetime
 import time
 
 from rdrs.monitoring import RealtimeFileMonitor
@@ -30,9 +31,11 @@ def test_real_file_event_is_automatically_persisted(
 
     watch_dir = tmp_path / "watched"
     watch_dir.mkdir()
+    observed = []
 
     monitor = RealtimeFileMonitor(
         watch_dir,
+        callback=observed.append,
         database=database,
     )
 
@@ -62,6 +65,9 @@ def test_real_file_event_is_automatically_persisted(
             ).fetchall()
 
         assert rows
+        observed_event = next(
+            event for event in observed if event.path == str(test_file)
+        )
 
         actions = [row[1] for row in rows]
 
@@ -75,6 +81,20 @@ def test_real_file_event_is_automatically_persisted(
 
         assert created_row[0] == str(test_file)
         assert "sha256" in created_row[2]
+        assert observed_event.event_id is not None
+        assert any(row[0] == str(test_file) for row in rows)
+
+        stored_event = next(
+            event
+            for event in database.list_events(limit=20)
+            if event["id"] == observed_event.event_id
+        )
+        observed_time = time.time() - observed_event.timestamp
+        stored_timestamp = datetime.fromisoformat(
+            stored_event["created_at"].replace("Z", "+00:00")
+        ).timestamp()
+        stored_time = time.time() - stored_timestamp
+        assert abs(observed_time - stored_time) < 2.0
 
     finally:
         monitor.stop()

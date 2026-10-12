@@ -27,6 +27,7 @@
             --bg: #12161c;          /* page */
             --surface: #171c24;     /* sidebar / top bar */
             --panel: #1a212b;       /* panels, table headers */
+            --panel-2: #202833;     /* inset tags, buttons, helper surfaces */
             --card: #1e2632;        /* cards */
             --card-hover: #232c3a;
             --raised: #2a3543;      /* active nav, hovered rows */
@@ -352,9 +353,14 @@
         .grid {
             display: grid;
             grid-template-columns:
-                repeat(4, minmax(0, 1fr));
+                repeat(5, minmax(0, 1fr));
             gap: 15px;
             margin-bottom: 16px;
+        }
+
+        .secondary-grid {
+            grid-template-columns:
+                repeat(3, minmax(0, 1fr));
         }
 
         .section-grid {
@@ -541,6 +547,71 @@
             margin-bottom: 14px;
         }
 
+        .panel-heading {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        .panel-heading .section-title {
+            margin: 0;
+        }
+
+        .panel-link {
+            flex-shrink: 0;
+            padding: 5px 8px;
+            border-color: transparent;
+            background: transparent;
+            color: var(--blue);
+            font-size: 12px;
+            white-space: nowrap;
+        }
+
+        .panel-link:hover:not(:disabled) {
+            border-color: var(--border);
+            background: var(--card-hover);
+        }
+
+        .overview-scroll {
+            max-height: 240px;
+            overflow: auto;
+            overscroll-behavior: contain;
+        }
+
+        .page-note {
+            color: var(--muted);
+            font-size: 12px;
+            line-height: 1.5;
+            margin: 0 0 12px;
+        }
+
+        .page-pagination {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .page-pagination[hidden] {
+            display: none;
+        }
+
+        .page-pagination button {
+            padding: 6px 10px;
+            font-size: 12px;
+        }
+
+        .pagination-info {
+            margin-right: auto;
+            color: var(--muted);
+            font-size: 12px;
+        }
+
         .table-wrap {
             width: 100%;
             overflow-x: auto;
@@ -550,6 +621,64 @@
             width: 100%;
             border-collapse: collapse;
             font-size: 12px;
+        }
+
+        .event-table {
+            table-layout: fixed;
+        }
+
+        .overview-event-table th:nth-child(1) {
+            width: 15%;
+        }
+
+        .overview-event-table th:nth-child(2) {
+            width: 57%;
+        }
+
+        .overview-event-table th:nth-child(3) {
+            width: 28%;
+        }
+
+        .overview-event-table {
+            min-width: 450px;
+        }
+
+        .all-events-table th:nth-child(1) {
+            width: 12%;
+        }
+
+        .all-events-table th:nth-child(2) {
+            width: 48%;
+        }
+
+        .all-events-table th:nth-child(3) {
+            width: 14%;
+        }
+
+        .all-events-table th:nth-child(4) {
+            width: 9%;
+        }
+
+        .all-events-table th:nth-child(5) {
+            width: 17%;
+        }
+
+        .all-events-table {
+            min-width: 760px;
+        }
+
+        .event-table td.path-cell {
+            overflow: hidden;
+            white-space: nowrap;
+        }
+
+        .path-scroll {
+            display: block;
+            width: 100%;
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
         th,
@@ -591,16 +720,28 @@
         .chart {
             width: 100%;
             height: 250px;
+            max-width: 100%;
             display: block;
             background: #141a22;
             border: 1px solid #2a3543;
             border-radius: 8px;
         }
 
+        .chart-note {
+            color: var(--muted);
+            font-size: 11px;
+            line-height: 1.45;
+            margin: -8px 0 8px;
+        }
+
         .files-list {
             display: flex;
             flex-direction: column;
             gap: 8px;
+            max-height: 240px;
+            overflow-y: auto;
+            overscroll-behavior: contain;
+            padding-right: 3px;
         }
 
         .file-row {
@@ -614,6 +755,8 @@
         }
 
         .file-path {
+            flex: 1 1 0;
+            min-width: 0;
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
@@ -693,7 +836,7 @@
         @media (max-width: 1150px) {
             .grid {
                 grid-template-columns:
-                    repeat(2, minmax(0, 1fr));
+                    repeat(3, minmax(0, 1fr));
             }
         }
 
@@ -704,6 +847,12 @@
 
             .section-grid {
                 grid-template-columns: 1fr;
+            }
+
+            .grid,
+            .secondary-grid {
+                grid-template-columns:
+                    repeat(2, minmax(0, 1fr));
             }
         }
 
@@ -781,10 +930,177 @@
                 grid-template-columns: 1fr;
             }
 
+            .secondary-grid {
+                grid-template-columns: 1fr;
+            }
+
             .report-row {
                 align-items: flex-start;
                 flex-direction: column;
             }
+        }
+        /* Analyst workspace: severity first, bounded telemetry, readable paths. */
+        :root { --radius: 5px; --radius-sm: 4px; }
+        .sidebar { width: 190px; }
+        .main { min-width: 0; }
+        .card { border-radius: 5px; box-shadow: none; min-width: 0; }
+        .section-grid > *, .grid > * { min-width: 0; }
+        .soc-posture { display: grid; grid-template-columns: 1fr 1.5fr; gap: 24px;
+            padding: 22px; border: 1px solid var(--border); border-left: 4px solid var(--blue);
+            background: var(--surface); margin-bottom: 16px; }
+        .soc-posture.critical { border-left-color: var(--red); }
+        .soc-posture.warning { border-left-color: var(--yellow); }
+        .soc-posture.normal { border-left-color: var(--green); }
+        .soc-posture .score { font-size: 42px; font-weight: 650; line-height: 1.2; }
+        .soc-posture .level { font-size: 22px; text-transform: uppercase; }
+        .eyebrow { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
+        .soc-note { font-size: 12px; color: var(--muted); margin-top: 8px; }
+        .soc-overview.active { display: flex; flex-direction: column; }
+        .soc-overview > .grid { order: 1; }
+        .soc-overview > .soc-queue { order: 2; }
+        .soc-overview > .soc-events { order: 3; }
+        .soc-overview > .soc-telemetry { order: 4; }
+        .soc-overview > .secondary-grid { order: 5; }
+        .soc-overview > .history-state { order: 6; margin-top: 12px; }
+        .soc-overview > .soc-posture { order: 0; }
+        .soc-overview .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        .incident-cards { display: grid; gap: 10px; }
+        .incident-object { padding: 14px; background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--border-strong); }
+        .incident-object.critical { border-left-color: var(--red); color: var(--text); }
+        .incident-object.warning { border-left-color: var(--yellow); color: var(--text); }
+        .incident-object header { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+        .incident-object dl { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 8px; margin: 12px 0; }
+        .incident-object dt { color: var(--muted); font-size: 11px; }
+        .incident-object dd { font-size: 12px; overflow-wrap: anywhere; }
+        .incident-actions { display: flex; gap: 8px; }
+        .severity { font-size: 11px; font-weight: 650; text-transform: uppercase; padding: 3px 6px; border: 1px solid currentColor; border-radius: 3px; }
+        .severity.critical { color: var(--red); }
+        .severity.warning { color: var(--yellow); }
+        .severity.normal { color: var(--muted); }
+        tr.alert-critical { background: rgba(248,81,73,.05); }
+        .path-display { display: flex; align-items: center; gap: 6px; min-width: 0; max-width: 100%; }
+        .path-display .path-scroll { flex: 1; min-width: 0; font-family: Consolas, monospace; font-size: 11px; }
+        .copy-path { flex: 0 0 auto; padding: 2px 5px; font-size: 10px; background: transparent; border-color: var(--border); }
+        .event-action { font-size: 11px; text-transform: uppercase; color: var(--blue); }
+        .event-meta { display: block; color: var(--muted); font-size: 11px; margin-top: 3px; }
+        .file-row .file-path { min-width: 0; }
+        .rank { color: var(--muted); font-family: Consolas, monospace; font-size: 11px; }
+        #incidentDetail { width: min(940px, calc(100% - 24px)); max-height: 90vh; margin: auto;
+            padding: 24px; background: var(--bg); color: var(--text); border: 1px solid var(--border-strong); overflow-y: auto; }
+        #incidentDetail::backdrop { background: rgba(0,0,0,.7); }
+        .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 16px 0; }
+        .detail-section { padding: 16px; border: 1px solid var(--border); min-width: 0; }
+        .detail-section h3 { font-size: 13px; margin-bottom: 12px; }
+        .detail-section ul { padding-left: 18px; font-size: 12px; }
+        .detail-timeline { max-height: 300px; overflow-y: auto; }
+        .detail-entry { padding: 8px 0; border-bottom: 1px solid var(--border-soft); }
+        .chart { height: 210px; }
+        @media(max-width: 800px) {
+            .sidebar { width: 160px; }
+            .soc-posture, .detail-grid { grid-template-columns: 1fr; }
+            .soc-overview .grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+        }
+        @media(max-width: 560px) {
+            .sidebar { width: 100%; }
+            .soc-overview .grid { grid-template-columns: 1fr; }
+            .incident-object dl { grid-template-columns: 1fr 1fr; }
+        }
+        /* Workstation shell: flat sections, compact telemetry, case-first scanning. */
+        :root { --bg:#0d1117; --surface:#111820; --card:#111820; --panel:#151e28;
+            --border:#26313d; --muted:#8998a9; --radius:2px; --radius-sm:2px; }
+        body { font-size:13px; }
+        button { border-radius:3px; padding:6px 10px; font-size:12px; }
+        .sidebar { width:174px; flex-shrink:0; background:#10161d; }
+        .brand { font-size:21px; letter-spacing:.05em; padding-bottom:20px; }
+        .brand span { font-size:10px; letter-spacing:.1em; text-transform:uppercase; }
+        .nav { gap:3px; }
+        .nav-item { border-radius:2px; padding:9px 12px; font-size:12px; }
+        .nav-item.active { border-left:2px solid var(--blue); background:#1b2734; }
+        .main { padding:16px 22px; }
+        .topbar { margin-bottom:8px; padding-bottom:12px; border-bottom:1px solid var(--border); }
+        .title h1 { font-size:19px; font-weight:600; }
+        .title p { font-size:11px; margin-top:2px; }
+        .status { margin:0 0 16px; padding:0; background:transparent; font-size:11px; }
+        .message { margin:0; }
+        .message:empty { display:none; }
+        .status-refreshed { font-family:Consolas,monospace; font-size:10px; }
+        .card { padding:12px 14px; border-radius:0; border:0; border-top:1px solid var(--border); background:var(--surface); }
+        .section-title { font-size:12px; letter-spacing:.055em; text-transform:uppercase; margin-bottom:10px; }
+        .panel-heading { margin-bottom:10px; gap:8px; }
+        .eyebrow { font-size:10px; letter-spacing:.09em; margin-bottom:6px; }
+        .soc-note { font-size:11px; }
+        .soc-overview.active { display:grid; grid-template-columns:minmax(0,1.2fr) minmax(0,1fr); gap:14px; }
+        .soc-overview > .soc-posture { grid-column:1 / -1; order:0; }
+        .soc-overview > .grid:not(.secondary-grid) { grid-column:1 / -1; order:1; }
+        .soc-overview > .soc-telemetry { grid-column:1 / -1; order:2; }
+        .soc-overview > .soc-queue { grid-column:1 / -1; order:3; }
+        .soc-overview > .soc-events { grid-column:1 / -1; order:4; }
+        .soc-overview > .secondary-grid { grid-column:1 / -1; order:5; }
+        .soc-overview > .history-state { grid-column:1 / -1; order:6; }
+        .soc-posture { margin:0; padding:15px 18px; grid-template-columns:minmax(220px,.65fr) 1.35fr;
+            background:#121a23; border:0; border-left:3px solid var(--blue); }
+        .soc-posture .score { font-size:30px; display:inline-block; margin-left:14px; }
+        .soc-posture .score::after { content:" / 100"; color:var(--muted); font-size:14px; font-weight:400; }
+        #incidentDetail .score::after { content:none; }
+        #incidentDetail .level { color:var(--red); }
+        .soc-posture .level { font-size:24px; display:inline-block; font-weight:650; }
+        .soc-posture .score-reason-lead { font-size:12px; }
+        .signal-tag { border-radius:2px; font-size:10px; }
+        .soc-overview .grid { margin:0; gap:0; }
+        .soc-overview .grid .card { background:transparent; border:0; border-right:1px solid var(--border); padding:3px 18px; display:flex; align-items:center; justify-content:space-between; gap:10px; }
+        .soc-overview .grid .number { font-size:20px; font-family:Consolas,monospace; }
+        .soc-overview .grid .card-label { margin:0; font-size:10px; text-transform:uppercase; letter-spacing:.06em; }
+        .soc-overview .section-grid { margin:0; gap:14px; }
+        .soc-telemetry { grid-template-columns:1fr 1fr; }
+        .soc-telemetry .chart { height:135px; border:0; border-radius:0; background:#10161d; }
+        .chart-note { font-size:10px; margin:0 0 6px; }
+        .soc-queue { grid-template-columns:minmax(0,1.05fr) minmax(0,1fr); }
+        .incident-object { padding:10px 12px; border:0; border-left:2px solid var(--border); border-bottom:1px solid var(--border); background:transparent; }
+        .incident-object header { gap:8px; font-size:12px; }
+        .incident-object dl { grid-template-columns:repeat(3,minmax(0,1fr)); margin:8px 0; gap:5px; }
+        .incident-object dt { font-size:10px; }
+        .incident-object dd { font-size:11px; }
+        .incident-cards { gap:0; }
+        .incident-actions button { padding:4px 8px; font-size:10px; }
+        .severity { font-size:10px; padding:2px 4px; border-radius:2px; }
+        th { background:#151e28; color:var(--muted); font-size:10px; text-transform:uppercase; letter-spacing:.04em; }
+        th, td { padding:8px 7px; }
+        td { font-size:11px; }
+        #dashboardAlerts td:nth-child(2), #alertsPageTable td:nth-child(2) { white-space:nowrap; font-size:10px; }
+        #dashboardAlerts td:nth-child(5), #dashboardAlerts td:nth-child(6) { white-space:nowrap; }
+        .soc-queue .table-wrap { overflow-x:auto; }
+        .soc-queue table { min-width:530px; }
+        .overview-scroll { max-height:270px; }
+        .report-row { border-radius:0; padding:12px 0; border:0; border-bottom:1px solid var(--border); background:transparent; }
+        .report-title { font-size:12px; }
+        .history-state { background:transparent; border:0; padding:8px 0; font-size:10px; }
+        #incidentDetail { width:min(1100px,calc(100% - 24px)); padding:18px; border-left:3px solid var(--red); }
+        #incidentDetail h2 { font-size:18px; }
+        .detail-section { padding:12px; background:var(--surface); border:0; border-top:1px solid var(--border); }
+        .detail-entry { position:relative; padding:7px 0 7px 14px; border-left:1px solid var(--border-strong); }
+        .detail-entry::before { content:""; position:absolute; left:-3px; top:14px; width:5px; height:5px; background:var(--blue); }
+        .detail-section h3 { font-size:11px; text-transform:uppercase; letter-spacing:.06em; }
+        .detail-timeline { max-height:320px; }
+        .process-observed { box-shadow:inset 2px 0 var(--yellow); background:rgba(210,153,34,.035); }
+        .form { max-width:780px; }
+        @media(max-width:800px) { .main { padding:14px; } .soc-overview.active { grid-template-columns:1fr; } .soc-posture { grid-template-columns:1fr; gap:12px; } }
+        @media(max-width:560px) { .sidebar { width:100%; } .main { padding:12px; } .soc-telemetry,.soc-queue { grid-template-columns:1fr !important; } .soc-overview .grid .card { border-right:0; border-bottom:1px solid var(--border); padding:6px 0; } }
+        /* Viewport shell: navigation stays visible; only the main pane scrolls. */
+        html, body { height:100%; overflow:hidden; }
+        .app { display:flex; height:100vh; height:100dvh; min-height:0; overflow:hidden; }
+        .sidebar { position:sticky; top:0; height:100%; overflow:hidden; }
+        .main { height:100%; min-height:0; overflow-y:auto; overflow-x:hidden; }
+        .soc-overview > .analyst-provenance { grid-column:1 / -1; order:2; }
+        .analyst-provenance > .card { padding:10px 14px; }
+        .soc-overview > .secondary-grid { order:2; }
+        @media(max-width:650px) {
+            .app { flex-direction:column; }
+            .sidebar { position:sticky; height:auto; flex:0 0 auto; padding:8px 12px; }
+            .sidebar .brand { margin:0 0 6px; padding:0; font-size:16px; }
+            .sidebar .brand span { display:inline; margin-left:8px; font-size:9px; }
+            .sidebar .nav { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:2px; }
+            .sidebar .nav-item { padding:6px 5px; font-size:10px; }
+            .main { flex:1 1 0; height:auto; }
         }
     </style>
 </head>
@@ -797,7 +1113,7 @@
         <div class="brand">
             RDRS
             <span>
-                Ransomware Detection &amp; Response System
+                Security Operations
             </span>
         </div>
 
@@ -806,7 +1122,7 @@
                 class="nav-item active"
                 data-page="dashboard"
             >
-                Dashboard
+                Overview
             </button>
 
             <button
@@ -858,7 +1174,7 @@
         <header class="topbar">
             <div class="title">
                 <h1 id="pageTitle">
-                    Security Dashboard
+                    Security Operations
                 </h1>
                 <p id="pageSubtitle">
                     RDRS real-time monitoring
@@ -919,6 +1235,14 @@
             class="page active"
             id="page-dashboard"
         >
+            <div class="soc-posture" id="threatPosture">
+                <div><div class="eyebrow">Threat posture · latest recorded detection</div><div id="postureValues"></div><div class="soc-note">Recorded score, not a continuous risk estimate.</div></div>
+                <div><div class="eyebrow">Detection signals &amp; assessment</div><div id="postureReason"></div><div class="soc-note" id="postureTime"></div></div>
+            </div>
+            <div class="section-grid soc-queue">
+                <div class="card"><div class="panel-heading"><div class="section-title">Incident investigation queue</div><button class="panel-link" data-page-link="incidents">All incidents</button></div><div id="overviewIncidents" class="incident-cards"></div></div>
+                <div class="card"><div class="eyebrow">Analyst context</div><p>Review Critical detections first. Incident records preserve affected files, process observations and simulation evidence.</p><p class="soc-note">Process attribution is heuristic. Alert totals are recorded history; acknowledgement and active-status tracking are not available.</p><div id="recentActivity" class="soc-note"></div></div>
+            </div>
 
             <!--
                 Explains what the counters below actually mean. "File Events 0"
@@ -986,28 +1310,6 @@
                     </div>
                 </div>
 
-            </div>
-
-            <div class="grid">
-
-                <div class="card">
-                    <div class="card-label">
-                        Process Snapshots
-                    </div>
-
-                    <div
-                        class="number"
-                        id="processCount"
-                    >
-                        0
-                    </div>
-
-                    <div class="card-hint">
-                        Cumulative rows recorded across every capture
-                        cycle &mdash; not the number of processes running now.
-                    </div>
-                </div>
-
                 <div class="card">
                     <div class="card-label">
                         Incidents
@@ -1021,38 +1323,25 @@
                     </div>
                 </div>
 
-                <div class="card">
-                    <div class="card-label">
-                        Score Reason
-                    </div>
-
-                    <div id="scoreReason">
-                        No score recorded
-                    </div>
-                </div>
-
-                <div class="card">
-                    <div class="card-label">
-                        Last Score Update
-                    </div>
-
-                    <div id="scoreTime">
-                        —
-                    </div>
-                </div>
-
             </div>
 
             <div class="section-grid">
 
                 <div class="card">
                     <div class="section-title">
-                        CPU History
+                        Recent Process CPU Distribution
                     </div>
+
+                    <p class="chart-note">
+                        The latest persisted process observations, ordered from
+                        lower to higher CPU usage.
+                    </p>
 
                     <canvas
                         class="chart"
                         id="cpuChart"
+                        role="img"
+                        aria-label="CPU usage distribution across recent process observations"
                     ></canvas>
                 </div>
 
@@ -1061,9 +1350,15 @@
                         Entropy History
                     </div>
 
+                    <p class="chart-note">
+                        Entropy recorded on recent file events, from oldest to newest.
+                    </p>
+
                     <canvas
                         class="chart"
                         id="entropyChart"
+                        role="img"
+                        aria-label="Entropy values from recent file events, ordered oldest to newest"
                     ></canvas>
                 </div>
 
@@ -1072,12 +1367,21 @@
             <div class="section-grid">
 
                 <div class="card">
-                    <div class="section-title">
-                        Recent File Events
+                    <div class="panel-heading">
+                        <div class="section-title">
+                            Recent Events
+                        </div>
+                        <button
+                            type="button"
+                            class="panel-link"
+                            data-page-link="events"
+                        >
+                            View all Events
+                        </button>
                     </div>
 
-                    <div class="table-wrap">
-                        <table>
+                    <div class="table-wrap overview-scroll">
+                        <table class="event-table overview-event-table">
                             <thead>
                             <tr>
                                 <th>Action</th>
@@ -1101,11 +1405,20 @@
                 </div>
 
                 <div class="card">
-                    <div class="section-title">
-                        Recent Alerts
+                    <div class="panel-heading">
+                        <div class="section-title">
+                            Recent Alerts
+                        </div>
+                        <button
+                            type="button"
+                            class="panel-link"
+                            data-page-link="alerts"
+                        >
+                            View all Alerts
+                        </button>
                     </div>
 
-                    <div class="table-wrap">
+                    <div class="table-wrap overview-scroll">
                         <table>
                             <thead>
                             <tr>
@@ -1134,8 +1447,17 @@
             <div class="section-grid">
 
                 <div class="card">
-                    <div class="section-title">
-                        Top Modified Files
+                    <div class="panel-heading">
+                        <div class="section-title">
+                            Top Modified Files
+                        </div>
+                        <button
+                            type="button"
+                            class="panel-link"
+                            data-page-link="events"
+                        >
+                            View Events
+                        </button>
                     </div>
 
                     <div
@@ -1149,11 +1471,20 @@
                 </div>
 
                 <div class="card">
-                    <div class="section-title">
-                        Recent Processes
+                    <div class="panel-heading">
+                        <div class="section-title">
+                            Recent Processes
+                        </div>
+                        <button
+                            type="button"
+                            class="panel-link"
+                            data-page-link="processes"
+                        >
+                            View all Processes
+                        </button>
                     </div>
 
-                    <div class="table-wrap">
+                    <div class="table-wrap overview-scroll">
                         <table>
                             <thead>
                             <tr>
@@ -1180,6 +1511,48 @@
 
             </div>
 
+            <div class="grid secondary-grid">
+
+                <div class="card">
+                    <div class="card-label">
+                        Process Snapshots
+                    </div>
+
+                    <div
+                        class="number"
+                        id="processCount"
+                    >
+                        0
+                    </div>
+
+                    <div class="card-hint">
+                        Cumulative rows recorded across every capture
+                        cycle &mdash; not the number of processes running now.
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-label">
+                        Score Reason
+                    </div>
+
+                    <div id="scoreReason">
+                        No score recorded
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-label">
+                        Last Score Update
+                    </div>
+
+                    <div id="scoreTime">
+                        —
+                    </div>
+                </div>
+
+            </div>
+
         </section>
 
         <!-- EVENTS -->
@@ -1193,8 +1566,14 @@
                     File System Events
                 </div>
 
+                <p
+                    class="page-note"
+                    id="eventsPageNotice"
+                    aria-live="polite"
+                ></p>
+
                 <div class="table-wrap">
-                    <table>
+                    <table class="event-table all-events-table">
                         <thead>
                         <tr>
                             <th>Action</th>
@@ -1216,6 +1595,12 @@
                         </tr>
                         </tbody>
                     </table>
+                </div>
+
+                <div class="page-pagination">
+                    <button type="button" id="eventsNewerBtn" hidden>Newer</button>
+                    <span id="eventsPageInfo" class="pagination-info" aria-live="polite"></span>
+                    <button type="button" id="eventsOlderBtn" hidden>Older</button>
                 </div>
             </div>
         </section>
@@ -1257,6 +1642,12 @@
                         </tbody>
                     </table>
                 </div>
+
+                <div class="page-pagination">
+                    <button type="button" id="processesNewerBtn" hidden>Newer</button>
+                    <span id="processesPageInfo" class="pagination-info" aria-live="polite"></span>
+                    <button type="button" id="processesOlderBtn" hidden>Older</button>
+                </div>
             </div>
         </section>
 
@@ -1293,6 +1684,12 @@
                         </tr>
                         </tbody>
                     </table>
+                </div>
+
+                <div class="page-pagination">
+                    <button type="button" id="alertsNewerBtn" hidden>Newer</button>
+                    <span id="alertsPageInfo" class="pagination-info" aria-live="polite"></span>
+                    <button type="button" id="alertsOlderBtn" hidden>Older</button>
                 </div>
             </div>
         </section>
@@ -1332,6 +1729,12 @@
                         </tbody>
                     </table>
                 </div>
+
+                <div class="page-pagination">
+                    <button type="button" id="incidentsNewerBtn" hidden>Newer</button>
+                    <span id="incidentsPageInfo" class="pagination-info" aria-live="polite"></span>
+                    <button type="button" id="incidentsOlderBtn" hidden>Older</button>
+                </div>
             </div>
         </section>
 
@@ -1350,6 +1753,12 @@
                     <div class="empty">
                         Loading incidents...
                     </div>
+                </div>
+
+                <div class="page-pagination">
+                    <button type="button" id="reportsNewerBtn" hidden>Newer</button>
+                    <span id="reportsPageInfo" class="pagination-info" aria-live="polite"></span>
+                    <button type="button" id="reportsOlderBtn" hidden>Older</button>
                 </div>
             </div>
         </section>
@@ -1506,6 +1915,14 @@
             </div>
         </section>
 
+        <dialog id="incidentDetail" aria-labelledby="incidentDetailTitle">
+            <div class="panel-heading">
+                <h2 id="incidentDetailTitle">Incident investigation</h2>
+                <button type="button" id="closeIncidentDetail">Close</button>
+            </div>
+            <div id="incidentDetailBody"></div>
+        </dialog>
+
         <div class="footer">
             RDRS · Data provided by the RDRS API
         </div>
@@ -1524,6 +1941,7 @@ function formatTimestamp(value) {
 }
     const API = {
         health: "/health",
+        publicSummary: "/public-summary",
         status: "/status",
         dashboard: "/dashboard-data",
         events: "/events",
@@ -1541,18 +1959,29 @@ function formatTimestamp(value) {
     const state = {
         dashboard: null,
         status: null,
+        access: null,
+        publicSummary: null,
         // Guards. Without these, the 5-second auto-refresh could overlap a
         // manual refresh or a control request and re-render stale values.
         refreshing: false,
         controlPending: false,
         // Guards the report buttons so a double-click cannot fire two
         // generations and race their messages against each other.
-        reportPending: false
+        reportPending: false,
+        pages: {
+            events: { cursor: null, previous: [], nextCursor: null, page: 1, items: [], total: null, loading: false, hasMore: false },
+            processes: { cursor: null, previous: [], nextCursor: null, page: 1, items: [], total: null, loading: false, hasMore: false },
+            alerts: { cursor: null, previous: [], nextCursor: null, page: 1, items: [], total: null, loading: false, hasMore: false },
+            incidents: { cursor: null, previous: [], nextCursor: null, page: 1, items: [], total: null, loading: false, hasMore: false },
+            reports: { cursor: null, previous: [], nextCursor: null, page: 1, items: [], total: null, loading: false, hasMore: false }
+        }
     };
+
+    const LIST_PAGE_SIZE = 1000;
 
     const pageTitles = {
         dashboard: [
-            "Security Dashboard",
+            "Security Operations",
             "RDRS real-time monitoring"
         ],
         events: [
@@ -1712,10 +2141,45 @@ function formatTimestamp(value) {
                     ? data.detail
                     : `HTTP ${response.status}`;
 
-            throw new Error(detail);
+            const error = new Error(detail);
+            error.status = response.status;
+            throw error;
         }
 
         return data;
+    }
+
+    async function requestPage(url) {
+        const response = await fetch(
+            url,
+            {cache: "no-store"}
+        );
+
+        let data = null;
+        try {
+            data = await response.json();
+        } catch {
+            data = null;
+        }
+
+        if (!response.ok) {
+            const detail = data?.detail || `HTTP ${response.status}`;
+            const error = new Error(detail);
+            error.status = response.status;
+            throw error;
+        }
+
+        const totalHeader = response.headers?.get?.("X-Total-Count");
+        const total = totalHeader === null || totalHeader === undefined
+            ? null
+            : Number(totalHeader);
+
+        return {
+            data,
+            total: Number.isFinite(total) ? total : null,
+            nextCursor: response.headers?.get?.("X-Next-Cursor") || null,
+            hasMore: response.headers?.get?.("X-Has-More") === "true"
+        };
     }
 
     function showMessage(text, kind) {
@@ -1748,6 +2212,12 @@ function formatTimestamp(value) {
     };
 
     function updateControls(status) {
+        if (state.access === "public") {
+            startBtn.disabled = true;
+            stopBtn.disabled = true;
+            startBtn.title = stopBtn.title = "Authenticated SSH tunnel access required";
+            return;
+        }
         // The settings lock follows the runtime state, so it is applied before
         // the early return below -- a control request in flight must not leave
         // the form editable while monitoring is running.
@@ -1772,6 +2242,8 @@ function formatTimestamp(value) {
 
     function renderStatus(data) {
         state.status = data;
+        document.getElementById("pageSubtitle").textContent =
+            `${data?.config?.environment || "Environment unavailable"} · Monitor → Detect → Triage → Investigate → Respond → Report`;
 
         const runtimeState =
             data && data.state
@@ -1989,6 +2461,10 @@ function formatTimestamp(value) {
         levelElement.className =
             `level ${levelClass(level)}`;
 
+        document.getElementById("threatPosture").className = `soc-posture ${levelClass(level)}`;
+        document.getElementById("postureTime").textContent = scoreData.created_at
+            ? `Last detection: ${formatTime(scoreData.created_at)}` : "No persisted detection yet";
+
         renderScoreReason(scoreData.reason);
 
         document.getElementById(
@@ -2085,6 +2561,23 @@ function formatTimestamp(value) {
             data.incident_count ?? 0;
     }
 
+    function renderPathScroller(path) {
+        const fullPath = String(path ?? "");
+        const safePath = escapeHtml(fullPath);
+
+        return `<span class="path-display"><span class="path-scroll" title="${safePath}">${escapeHtml(compactPath(fullPath))}</span><button type="button" class="copy-path" data-copy-path="${safePath}" aria-label="Copy full path">Copy</button></span>`;
+    }
+
+    function compactPath(path) {
+        const text = String(path || "");
+        if (text.length <= 65) return text;
+        const parts = text.split(/[\\/]/);
+        const filename = parts.pop();
+        const separator = text.includes("\\") ? "\\" : "/";
+        const parent = parts.pop() || "";
+        return `${text.slice(0, 22)}…${separator}${parent.slice(0, 18)}${separator}${filename}`;
+    }
+
     function renderEvents(
         events,
         elementId
@@ -2115,10 +2608,10 @@ function formatTimestamp(value) {
                 events.map(event => `
                     <tr>
                         <td>
-                            ${escapeHtml(event.action)}
+                            <span class="event-action">${escapeHtml(event.action)}</span>
                         </td>
-                        <td>
-                            ${escapeHtml(event.path)}
+                        <td class="path-cell">
+                            ${renderPathScroller(event.path)}
                         </td>
                         <td>
                             ${escapeHtml(
@@ -2154,10 +2647,11 @@ function formatTimestamp(value) {
             events.map(event => `
                 <tr>
                     <td>
-                        ${escapeHtml(event.action)}
+                        <span class="event-action">${escapeHtml(event.action)}</span>
                     </td>
-                    <td>
-                        ${escapeHtml(event.path)}
+                    <td class="path-cell">
+                        ${renderPathScroller(event.path)}
+                        <span class="event-meta">${event.action === "renamed" ? `${escapeHtml(compactPath(event.previous_path))} → ${escapeHtml(compactPath(event.new_path || event.path))}` : `Entropy ${escapeHtml(number(event.metadata?.entropy, 3))}`}</span>
                     </td>
                     <td>
                         ${escapeHtml(
@@ -2199,12 +2693,14 @@ function formatTimestamp(value) {
         if (elementId === "processPageTable") {
             table.innerHTML =
                 processes.map(process => `
-                    <tr>
+                    <tr class="${Array.from(incidentRecords.values()).some(incident => (incident.suspect_process || incident.evidence?.suspect_process)?.pid === process.pid) ? 'process-observed' : ''}">
                         <td>
                             ${escapeHtml(process.pid)}
                         </td>
                         <td>
                             ${escapeHtml(process.name)}
+                            ${Array.from(incidentRecords.values()).some(incident => (incident.suspect_process || incident.evidence?.suspect_process)?.pid === process.pid) ? '<span class="event-meta">Incident process observation · heuristic PID association</span>' : ''}
+                            <span class="event-meta" title="${escapeHtml(process.command_line || '')}">${escapeHtml(compactPath(process.command_line || "Command not recorded"))}</span>
                         </td>
                         <td>
                             ${escapeHtml(
@@ -2228,10 +2724,8 @@ function formatTimestamp(value) {
                             )}
                         </td>
                         <td>
-                            ${escapeHtml(
-                                process.executable_path ||
-                                "—"
-                            )}
+                            ${renderPathScroller(process.executable_path || "—")}
+                            <span class="event-meta">Observed ${escapeHtml(formatTime(process.captured_at))}</span>
                         </td>
                         <td>
                             ${escapeHtml(
@@ -2251,7 +2745,7 @@ function formatTimestamp(value) {
                         ${escapeHtml(process.pid)}
                     </td>
                     <td>
-                        ${escapeHtml(process.name)}
+                        ${escapeHtml(overviewProcessLabel(process))}
                     </td>
                     <td>
                         ${escapeHtml(
@@ -2277,6 +2771,10 @@ function formatTimestamp(value) {
         alerts,
         elementId
     ) {
+        if (Array.isArray(alerts)) {
+            const priority = value => ({critical: 0, warning: 1, normal: 2}[levelClass(value)] ?? 3);
+            alerts = [...alerts].sort((left, right) => priority(left.severity || left.level) - priority(right.severity || right.level));
+        }
         const table =
             document.getElementById(elementId);
 
@@ -2301,18 +2799,19 @@ function formatTimestamp(value) {
         if (elementId === "alertsPageTable") {
             table.innerHTML =
                 alerts.map(alert => `
-                    <tr>
+                    <tr class="alert-${levelClass(alert.severity || alert.level)}">
                         <td>
-                            ${escapeHtml(
+                            <span class="severity ${levelClass(alert.severity || alert.level)}">${escapeHtml(
                                 alert.severity ||
                                 alert.level
-                            )}
+                            )}</span>
                         </td>
                         <td>
                             ${escapeHtml(
                                 alert.message ||
                                 alert.description
                             )}
+                            <span class="event-meta">${alertRelation(alert)}</span>
                         </td>
                         <td>
                             ${escapeHtml(
@@ -2340,18 +2839,19 @@ function formatTimestamp(value) {
 
         table.innerHTML =
             alerts.map(alert => `
-                <tr>
+                <tr class="alert-${levelClass(alert.severity || alert.level)}">
                     <td>
-                        ${escapeHtml(
+                        <span class="severity ${levelClass(alert.severity || alert.level)}">${escapeHtml(
                             alert.severity ||
                             alert.level
-                        )}
+                        )}</span>
                     </td>
                     <td>
                         ${escapeHtml(
                             alert.message ||
                             alert.description
                         )}
+                        <span class="event-meta">Score ${escapeHtml(number(alert.evidence?.score, 1))} / 100 · ${alertRelation(alert)}</span>
                     </td>
                     <td>
                         ${escapeHtml(
@@ -2365,9 +2865,34 @@ function formatTimestamp(value) {
             `).join("");
     }
 
+    function alertRelation(alert) {
+        const incident = Array.from(incidentRecords.values()).find(item => item.alert_id === alert.id);
+        return incident ? `Incident #${escapeHtml(incident.id)} · ${escapeHtml(incident.status || "Status not recorded")}` : "Incident link/status not recorded";
+    }
+
+    function compactTime(value) {
+        if (!value) return "—";
+        const date = new Date(value);
+        return Number.isNaN(date.getTime()) ? "—" : date.toLocaleTimeString([], {hour:"2-digit",minute:"2-digit",second:"2-digit",hour12:false});
+    }
+
+    function renderTriageQueue(alerts, elementId) {
+        const table = document.getElementById(elementId);
+        const priority = level => ({critical:0, warning:1, normal:2}[levelClass(level)] ?? 3);
+        const rows = [...(alerts || [])].sort((a,b) => priority(a.severity) - priority(b.severity));
+        const header = table.closest("table")?.querySelector("thead tr");
+        if (header) header.innerHTML = "<th>Severity</th><th>Time</th><th>Detection</th><th>Score</th><th>Incident</th><th>Status</th>";
+        table.innerHTML = rows.length ? rows.map(alert => {
+            const incident = Array.from(incidentRecords.values()).find(item => item.alert_id === alert.id);
+            const signals = Object.entries(alert.evidence?.signals || {}).filter(([,value]) => value).map(([name]) => signalLabel(name));
+            return `<tr class="alert-${levelClass(alert.severity)}"><td><span class="severity ${levelClass(alert.severity)}">${escapeHtml(alert.severity)}</span></td><td title="${escapeHtml(formatTime(alert.created_at))}">${escapeHtml(compactTime(alert.created_at))}</td><td>${escapeHtml(signals.join(" · ") || alert.message || "Detection")}<span class="event-meta">${escapeHtml(alert.message || "")}</span></td><td>${escapeHtml(number(alert.evidence?.score,1))}</td><td>${incident ? `<button data-investigate="${escapeHtml(incident.id)}">INC-${escapeHtml(String(incident.id).padStart(3,"0"))}</button>` : "—"}</td><td>${escapeHtml(incident?.status || "—")}</td></tr>`;
+        }).join("") : '<tr><td colspan="6" class="empty">No stored alerts</td></tr>';
+    }
+
     function renderIncidents(
         incidents
     ) {
+        renderIncidentObjects(incidents, "incidentObjects");
         const table =
             document.getElementById(
                 "incidentsPageTable"
@@ -2447,7 +2972,7 @@ function formatTimestamp(value) {
         }
 
         container.innerHTML =
-            files.map(item => {
+            files.map((item, index) => {
                 const path =
                     item.path ||
                     item.file ||
@@ -2462,11 +2987,12 @@ function formatTimestamp(value) {
 
                 return `
                     <div class="file-row">
+                        <span class="rank">${String(index + 1).padStart(2, "0")}</span>
                         <span
                             class="file-path"
                             title="${escapeHtml(path)}"
                         >
-                            ${escapeHtml(path)}
+                            ${escapeHtml(compactPath(path))}
                         </span>
 
                         <span class="file-count">
@@ -2475,6 +3001,76 @@ function formatTimestamp(value) {
                     </div>
                 `;
             }).join("");
+    }
+
+    const incidentRecords = new Map();
+
+    function overviewProcessLabel(process) {
+        const incident = Array.from(incidentRecords.values()).find(item => {
+            const observation = item.suspect_process || item.evidence?.suspect_process;
+            return observation?.name === process.name;
+        });
+        return incident && String(incident.id) !== "3"
+            ? "Heuristic process observation"
+            : process.name;
+    }
+
+    function incidentProcessLabel(incident) {
+        const process = incident.suspect_process || incident.evidence?.suspect_process;
+        if (!process?.name) return "Not recorded";
+        // This verified RDRS investigation retains useful process context.
+        // Other host snapshots are observations, not causal attribution.
+        return String(incident.id) === "3"
+            ? `${process.name} · heuristic observation`
+            : "Heuristic process observation available";
+    }
+
+    function incidentRecommendation(text, incident, process) {
+        if (String(incident.id) === "3" || !process?.name) return text;
+        return String(text).split(process.name).join("the recorded heuristic process observation");
+    }
+
+    function renderIncidentObjects(incidents, elementId, limit = Infinity) {
+        const container = document.getElementById(elementId);
+        const rows = Array.isArray(incidents) ? incidents.slice(0, limit) : [];
+        for (const incident of rows) incidentRecords.set(String(incident.id), {...incidentRecords.get(String(incident.id)), ...incident});
+        container.innerHTML = rows.length ? rows.map(incident => {
+            const level = incident.threat_level || incident.severity;
+            const score = incident.threat_score ?? incident.evidence?.score;
+            return `<article class="incident-object ${levelClass(level)}">
+                <header><strong>INCIDENT #${escapeHtml(incident.id)}</strong><span class="severity ${levelClass(level)}">${escapeHtml(level)}</span><strong>${escapeHtml(number(score, 1))} / 100</strong></header>
+                <dl><div><dt>Detected</dt><dd>${escapeHtml(formatTime(incident.created_at))}</dd></div><div><dt>Affected paths</dt><dd>${escapeHtml((incident.affected_files || incident.evidence?.affected_files)?.length ?? 0)}</dd></div><div><dt>Status</dt><dd>${escapeHtml(incident.status || "Not recorded")}</dd></div><div><dt>Process observation</dt><dd>${escapeHtml(incidentProcessLabel(incident))}</dd></div><div><dt>Response mode</dt><dd>${incident.evidence?.simulation_mode === true ? "Simulation" : "Not recorded"}</dd></div></dl>
+                <div class="incident-actions"><button data-investigate="${escapeHtml(incident.id)}">View incident</button><button data-page-link="reports" onclick="navigate('reports')">View reports</button></div>
+            </article>`;
+        }).join("") : '<div class="empty">No stored incidents. Monitoring observations will appear here when a Critical incident is recorded.</div>';
+    }
+
+    async function investigateIncident(id) {
+        let incident = incidentRecords.get(String(id));
+        try {
+            const records = await request(`${API.incidents}?limit=1000`);
+            const stored = Array.isArray(records) ? records.find(row => String(row.id) === String(id)) : null;
+            if (stored) { incident = stored; incidentRecords.set(String(id), stored); }
+        } catch { /* Retain the actual loaded record when the API is unavailable. */ }
+        if (!incident) { showMessage("Incident record is not loaded.", "error"); return; }
+        const dialog = document.getElementById("incidentDetail");
+        const body = document.getElementById("incidentDetailBody");
+        document.getElementById("incidentDetailTitle").textContent = `Incident #${id} · Investigation`;
+        body.innerHTML = `<div class="soc-note">Loading stored report timeline…</div>`;
+        if (!dialog.open) dialog.showModal();
+        let report = null;
+        try { report = await request(`${API.reports}/${encodeURIComponent(id)}/json`); }
+        catch { /* A report may not have been generated. Show stored fields honestly. */ }
+        const evidence = report?.evidence || incident.evidence || {};
+        const signals = Object.entries(evidence.signals || {}).filter(([, active]) => active).map(([name]) => signalLabel(name));
+        const files = report?.affected_files || incident.affected_files || [];
+        const process = report?.suspect_process || incident.suspect_process || evidence.suspect_process;
+        const timeline = report?.timeline || [];
+        body.innerHTML = `<div class="soc-posture ${levelClass(incident.threat_level || incident.severity)}"><div><div class="eyebrow">Recorded threat</div><div class="level">${escapeHtml(incident.threat_level || incident.severity)}</div><div class="score">${escapeHtml(number(incident.threat_score ?? evidence.score, 1))} / 100</div></div><div><div class="eyebrow">Detected</div>${escapeHtml(formatTime(incident.created_at))}<p class="soc-note">${escapeHtml(incident.description || "")}</p><p class="soc-note">${escapeHtml(signals.join(" · ") || "No signal map recorded")}</p></div></div>
+            <div class="detail-grid"><section class="detail-section"><h3>Process observation</h3><p>${escapeHtml(incidentProcessLabel({...incident, suspect_process:process}))}</p><p class="soc-note">${escapeHtml(evidence.suspect_process_attribution || "Heuristic observation; causal file attribution is not established.")}</p>${process?.name ? `<details ${String(incident.id) === "3" ? "open" : ""}><summary class="soc-note">Stored process observation</summary><p class="soc-note">${escapeHtml(process.name)} ${process.pid ? `· PID ${escapeHtml(process.pid)}` : ""}</p>${process.executable_path ? renderPathScroller(process.executable_path) : ""}</details>` : ""}</section><section class="detail-section"><h3>Response &amp; evidence</h3><p>${evidence.simulation_mode === true ? "Simulation mode — originals are not modified by response." : "Response mode not recorded."}</p><p class="soc-note">Evidence-copy paths/count are not exposed by this incident API. Consult the audit trail for copy outcomes.</p></section></div>
+            <section class="detail-section"><h3>Timeline · ${timeline.length ? `${timeline.length} stored events` : "Report not generated"}</h3><div class="detail-timeline">${timeline.length ? timeline.map(event => `<div class="detail-entry"><span class="event-action">${escapeHtml(event.action)}</span> <span class="soc-note">${escapeHtml(formatTime(event.timestamp))}</span>${renderPathScroller(event.path)}<span class="event-meta">Entropy ${escapeHtml(number(event.metadata?.entropy, 3))}</span></div>`).join("") : '<p class="soc-note">Generate JSON to retrieve the incident-scoped timeline from the existing report API.</p>'}</div></section>
+            <div class="detail-grid"><section class="detail-section"><h3>Affected files · ${files.length} paths</h3><div class="detail-timeline">${files.map(path => `<div class="detail-entry">${renderPathScroller(path)}</div>`).join("")}</div></section><section class="detail-section"><h3>Recommendations</h3>${report?.recommendations?.length ? `<ul>${report.recommendations.map(text => `<li>${escapeHtml(incidentRecommendation(text, incident, process))}</li>`).join("")}</ul>` : '<p class="soc-note">Generate a report to retrieve recorded-signal recommendations.</p>'}</section></div>
+            <div class="incident-actions"><button data-detail-report="json" data-incident-id="${escapeHtml(id)}">Generate JSON</button><button data-detail-report="csv" data-incident-id="${escapeHtml(id)}">Generate CSV</button></div>`;
     }
 
     function normalizeSeries(
@@ -2511,7 +3107,8 @@ function formatTimestamp(value) {
         canvas,
         values,
         minValue,
-        maxValue
+        maxValue,
+        axes
     ) {
         const context =
             canvas.getContext("2d");
@@ -2547,47 +3144,96 @@ function formatTimestamp(value) {
             height
         );
 
-        context.strokeStyle =
-            "#26313d";
+        const plot = {
+            left: 54,
+            right: width - 12,
+            top: 14,
+            bottom: height - 43
+        };
+        const plotWidth = plot.right - plot.left;
+        const plotHeight = plot.bottom - plot.top;
+        const range = Math.max(maxValue - minValue, 0.0001);
 
-        context.lineWidth = 1;
-
-        for (let i = 1; i < 5; i++) {
-            const y =
-                (height / 5) * i;
-
-            context.beginPath();
-            context.moveTo(0, y);
-            context.lineTo(width, y);
-            context.stroke();
+        if (Number.isFinite(axes.threshold) && axes.threshold >= minValue && axes.threshold <= maxValue) {
+            const y = plot.bottom - ((axes.threshold - minValue) / range) * plotHeight;
+            context.strokeStyle = "#d29922";
+            context.setLineDash([3, 4]);
+            context.beginPath(); context.moveTo(plot.left,y); context.lineTo(plot.right,y); context.stroke();
+            context.setLineDash([]);
+            context.fillStyle = "#d29922"; context.font = "9px system-ui";
+            context.fillText(`Threshold ${axes.threshold}`, plot.left + 5, y - 4);
         }
 
+        context.strokeStyle = "#26313d";
+        context.fillStyle = "#93a1b2";
+        context.lineWidth = 1;
+        context.font = "10px system-ui, sans-serif";
+
+        (axes.yTicks || []).forEach(tick => {
+            const normalized =
+                (tick.value - minValue) / range;
+            const y = plot.bottom - normalized * plotHeight;
+
+            context.beginPath();
+            context.moveTo(plot.left, y);
+            context.lineTo(plot.right, y);
+            context.stroke();
+
+            context.textAlign = "right";
+            context.textBaseline = "middle";
+            context.fillText(tick.label, plot.left - 8, y);
+        });
+
+        context.strokeStyle = "#526174";
+        context.beginPath();
+        context.moveTo(plot.left, plot.top);
+        context.lineTo(plot.left, plot.bottom);
+        context.lineTo(plot.right, plot.bottom);
+        context.stroke();
+
+        context.fillStyle = "#93a1b2";
+        context.font = "10px system-ui, sans-serif";
+        context.textBaseline = "top";
+
+        (axes.xTicks || []).forEach(tick => {
+            const x = plot.left + tick.position * plotWidth;
+
+            context.strokeStyle = "#526174";
+            context.beginPath();
+            context.moveTo(x, plot.bottom);
+            context.lineTo(x, plot.bottom + 4);
+            context.stroke();
+
+            context.textAlign = tick.align || "center";
+            context.fillText(tick.label, x, plot.bottom + 7);
+        });
+
+        context.save();
+        context.translate(13, plot.top + plotHeight / 2);
+        context.rotate(-Math.PI / 2);
+        context.textAlign = "center";
+        context.textBaseline = "middle";
+        context.fillText(axes.yLabel, 0, 0);
+        context.restore();
+
+        context.textAlign = "center";
+        context.textBaseline = "bottom";
+        context.fillText(axes.xLabel, plot.left + plotWidth / 2, height - 2);
+
         if (!values.length) {
-            context.fillStyle =
-                "#687584";
-
-            context.font =
-                "12px Arial";
-
-            context.textAlign =
-                "center";
+            context.fillStyle = "#93a1b2";
+            context.font = "12px system-ui, sans-serif";
+            context.textAlign = "center";
+            context.textBaseline = "middle";
 
             context.fillText(
                 "No telemetry data",
-                width / 2,
-                height / 2
+                plot.left + plotWidth / 2,
+                plot.top + plotHeight / 2
             );
 
             return;
         }
-
-        const range =
-            Math.max(
-                maxValue - minValue,
-                0.0001
-            );
-
-        const padding = 15;
 
         context.strokeStyle =
             "#79c0ff";
@@ -2598,26 +3244,14 @@ function formatTimestamp(value) {
 
         values.forEach(
             (value, index) => {
-                const x =
-                    values.length === 1
-                        ? width / 2
-                        : padding +
-                          (
-                              (width -
-                               padding * 2) /
-                              (values.length - 1)
-                          ) * index;
-
-                const normalized =
-                    (
-                        value - minValue
-                    ) / range;
-
-                const y =
-                    height -
-                    padding -
-                    normalized *
-                    (height - padding * 2);
+                const x = values.length === 1
+                    ? plot.left + plotWidth / 2
+                    : plot.left + (plotWidth / (values.length - 1)) * index;
+                const normalized = Math.max(
+                    0,
+                    Math.min(1, (value - minValue) / range)
+                );
+                const y = plot.bottom - normalized * plotHeight;
 
                 if (index === 0) {
                     context.moveTo(x, y);
@@ -2634,26 +3268,14 @@ function formatTimestamp(value) {
 
         values.forEach(
             (value, index) => {
-                const x =
-                    values.length === 1
-                        ? width / 2
-                        : padding +
-                          (
-                              (width -
-                               padding * 2) /
-                              (values.length - 1)
-                          ) * index;
-
-                const normalized =
-                    (
-                        value - minValue
-                    ) / range;
-
-                const y =
-                    height -
-                    padding -
-                    normalized *
-                    (height - padding * 2);
+                const x = values.length === 1
+                    ? plot.left + plotWidth / 2
+                    : plot.left + (plotWidth / (values.length - 1)) * index;
+                const normalized = Math.max(
+                    0,
+                    Math.min(1, (value - minValue) / range)
+                );
+                const y = plot.bottom - normalized * plotHeight;
 
                 context.beginPath();
                 context.arc(
@@ -2672,18 +3294,20 @@ function formatTimestamp(value) {
         const telemetry =
             data?.telemetry || {};
 
-        const cpu =
-            normalizeSeries(
-                data?.cpu_history ||
-                telemetry.cpu_history ||
-                telemetry.cpu ||
-                [],
-                [
-                    "cpu_percent",
-                    "cpu",
-                    "value"
-                ]
-            );
+        // Each point is a real persisted process observation. Sorting the
+        // latest observations by CPU makes this a distribution, rather than
+        // implying that different PIDs are one continuous time series.
+        const cpu = normalizeSeries(
+            data?.cpu_history ||
+            telemetry.cpu_history ||
+            telemetry.cpu ||
+            [],
+            [
+                "cpu_percent",
+                "cpu",
+                "value"
+            ]
+        ).sort((left, right) => left - right);
 
         const entropy =
             normalizeSeries(
@@ -2701,7 +3325,27 @@ function formatTimestamp(value) {
             document.getElementById("cpuChart"),
             cpu,
             0,
-            100
+            100,
+            {
+                yLabel: "CPU usage (%)",
+                threshold: Number(state.status?.config?.detection_thresholds?.cpu_percent),
+                xLabel: "Observation percentile (CPU ascending)",
+                yTicks: [0, 25, 50, 75, 100].map(value => ({
+                    value,
+                    label: `${value}%`
+                })),
+                xTicks: [0, 0.25, 0.5, 0.75, 1].map(
+                    (position, index) => ({
+                        position,
+                        label: `${index * 25}%`,
+                        align: index === 0
+                            ? "left"
+                            : index === 4
+                                ? "right"
+                                : "center"
+                    })
+                )
+            }
         );
 
         drawChart(
@@ -2710,12 +3354,29 @@ function formatTimestamp(value) {
             ),
             entropy,
             0,
-            8
+            8,
+            {
+                yLabel: "Entropy (bits per byte)",
+                threshold: Number(state.status?.config?.detection_thresholds?.average_entropy),
+                xLabel: "File-event order (oldest to newest)",
+                yTicks: [0, 2, 4, 6, 8].map(value => ({
+                    value,
+                    label: String(value)
+                })),
+                xTicks: [
+                    { position: 0, label: "Oldest", align: "left" },
+                    { position: 0.25, label: "25%" },
+                    { position: 0.5, label: "50%" },
+                    { position: 0.75, label: "75%" },
+                    { position: 1, label: "Newest", align: "right" }
+                ]
+            }
         );
     }
 
     function renderDashboard(data) {
         state.dashboard = data;
+        for (const incident of (data?.incidents || [])) incidentRecords.set(String(incident.id), {...incidentRecords.get(String(incident.id)), ...incident});
 
         renderHistoryState(
             state.status,
@@ -2731,29 +3392,46 @@ function formatTimestamp(value) {
         );
 
         renderEvents(
-            data?.events || [],
+            (data?.events || []).slice(0, 8),
             "dashboardEvents"
         );
 
         renderProcesses(
-            data?.processes || [],
+            (data?.processes || []).slice(0, 5),
             "dashboardProcesses"
         );
 
-        renderAlerts(
-            data?.alerts || [],
+        renderTriageQueue(
+            (data?.alerts || []).slice(0, 5),
             "dashboardAlerts"
         );
 
-        renderIncidents(
-            data?.incidents || []
-        );
+        renderIncidentObjects(data?.incidents || [], "overviewIncidents", 2);
+        document.getElementById("recentActivity").textContent =
+            `Recent activity: ${(data?.events || []).length} observations in the current overview. `
+            + `Latest event: ${formatTime(data?.events?.[0]?.created_at)}`;
 
         renderTopModified(
-            data?.top_modified || []
+            (data?.top_modified || []).slice(0, 5)
         );
 
         renderCharts(data);
+        const samples = data?.events || [];
+        const bins = new Map();
+        for (const event of samples) {
+            const timestamp = Date.parse(event.created_at);
+            if (!Number.isFinite(timestamp)) continue;
+            const bucket = Math.floor(timestamp / 1000) * 1000;
+            bins.set(bucket, (bins.get(bucket) || 0) + 1);
+        }
+        const times = [...bins.keys()].sort((a,b) => a-b);
+        const counts = times.map(time => bins.get(time));
+        const activityCanvas = document.getElementById("activityChart");
+        if (activityCanvas) drawChart(activityCanvas, counts, 0, Math.max(1,...counts), {
+            yLabel:"Events / observed second", xLabel:"Recent persisted activity (bounded sample)",
+            yTicks:[{value:0,label:"0"},{value:Math.max(1,...counts),label:String(Math.max(1,...counts))}],
+            xTicks:times.length ? [{position:0,label:new Date(times[0]).toLocaleTimeString(),align:"left"},{position:1,label:new Date(times[times.length-1]).toLocaleTimeString(),align:"right"}] : []
+        });
     }
 
     async function loadDashboard() {
@@ -2763,49 +3441,182 @@ function formatTimestamp(value) {
         renderDashboard(data);
     }
 
-    async function loadEventsPage() {
-        const data =
-            await request(
-                `${API.events}?limit=200`
-            );
+    const pageCollections = {
+        events: {
+            endpoint: API.events,
+            timeKey: "created_at",
+            summaryKey: "event_count",
+            render: items => renderEvents(items, "eventsPageTable")
+        },
+        processes: {
+            endpoint: API.processes,
+            timeKey: "captured_at",
+            summaryKey: "process_count",
+            render: items => renderProcesses(items, "processPageTable")
+        },
+        alerts: {
+            endpoint: API.alerts,
+            timeKey: "created_at",
+            summaryKey: "alert_count",
+            render: items => renderTriageQueue(items, "alertsPageTable")
+        },
+        incidents: {
+            endpoint: API.incidents,
+            timeKey: "created_at",
+            summaryKey: "incident_count",
+            render: items => renderIncidents(items)
+        },
+        reports: {
+            endpoint: API.reports,
+            timeKey: "created_at",
+            summaryKey: "incident_count",
+            extract: payload => payload?.incidents || [],
+            render: items => renderReports({incidents: items})
+        }
+    };
 
-        renderEvents(
-            data,
-            "eventsPageTable"
-        );
+    function collectionCursor(item, timeKey) {
+        if (!item || item.id === undefined || !item[timeKey]) {
+            return null;
+        }
+        return `${item[timeKey]}|${item.id}`;
     }
 
-    async function loadProcessesPage() {
-        const data =
-            await request(
-                `${API.processes}?limit=200`
-            );
+    function updatePagePagination(name) {
+        const page = state.pages[name];
+        const newer = document.getElementById(`${name}NewerBtn`);
+        const older = document.getElementById(`${name}OlderBtn`);
+        const info = document.getElementById(`${name}PageInfo`);
 
-        renderProcesses(
-            data,
-            "processPageTable"
-        );
+        newer.hidden = page.loading || page.previous.length === 0;
+        older.hidden = page.loading || !page.hasMore;
+        newer.disabled = page.loading;
+        older.disabled = page.loading;
+
+        info.textContent = page.total === null
+            ? `Page ${page.page} · ${page.items.length} records`
+            : `Page ${page.page} · ${page.items.length.toLocaleString()} shown · `
+              + `${page.total.toLocaleString()} total`;
     }
 
-    async function loadAlertsPage() {
-        const data =
-            await request(
-                `${API.alerts}?limit=200`
-            );
+    async function loadCollectionPage(name, {reset = false} = {}) {
+        const definition = pageCollections[name];
+        const page = state.pages[name];
 
-        renderAlerts(
-            data,
-            "alertsPageTable"
-        );
+        if (reset) {
+            page.cursor = null;
+            page.previous = [];
+            page.nextCursor = null;
+            page.page = 1;
+            page.items = [];
+            page.total = null;
+            page.hasMore = false;
+        }
+
+        page.loading = true;
+        updatePagePagination(name);
+
+        try {
+            const params = new URLSearchParams({
+                limit: String(LIST_PAGE_SIZE)
+            });
+            if (page.cursor) {
+                params.set("cursor", page.cursor);
+            }
+            if (page.total === null) {
+                params.set("include_total", "true");
+            }
+
+            const result = await requestPage(
+                `${definition.endpoint}?${params}`
+            );
+            const items = definition.extract
+                ? definition.extract(result.data)
+                : (Array.isArray(result.data) ? result.data : []);
+
+            page.items = items;
+            page.nextCursor = result.nextCursor || (
+                result.hasMore
+                    ? collectionCursor(items[items.length - 1], definition.timeKey)
+                    : null
+            );
+            page.hasMore = result.hasMore || Boolean(page.nextCursor);
+            page.total = result.total ?? page.total ?? Number(
+                state.dashboard?.summary?.[definition.summaryKey]
+            );
+            if (!Number.isFinite(page.total)) {
+                page.total = null;
+            }
+
+            definition.render(page.items);
+
+            if (name === "events") {
+                const notice = document.getElementById("eventsPageNotice");
+                notice.textContent = page.total !== null && page.total > page.items.length
+                    ? `Page ${page.page}: ${page.items.length.toLocaleString()} of `
+                      + `${page.total.toLocaleString()} recorded events. Use Older/Newer to browse.`
+                    : "";
+            }
+        } finally {
+            page.loading = false;
+            updatePagePagination(name);
+        }
     }
 
-    async function loadIncidentsPage() {
-        const data =
-            await request(
-                `${API.incidents}?limit=200`
-            );
+    async function loadOlderPage(name) {
+        const page = state.pages[name];
+        if (page.loading || !page.hasMore || !page.nextCursor) {
+            return;
+        }
 
-        renderIncidents(data);
+        page.previous.push(page.cursor);
+        page.cursor = page.nextCursor;
+        page.page += 1;
+
+        try {
+            await loadCollectionPage(name);
+        } catch (error) {
+            page.cursor = page.previous.pop() ?? null;
+            page.page = Math.max(1, page.page - 1);
+            showMessage(error.message, "error");
+        }
+    }
+
+    async function loadNewerPage(name) {
+        const page = state.pages[name];
+        if (page.loading || page.previous.length === 0) {
+            return;
+        }
+
+        const currentCursor = page.cursor;
+        const previousCursor = page.previous.pop();
+        page.cursor = previousCursor;
+        page.page = Math.max(1, page.page - 1);
+
+        try {
+            await loadCollectionPage(name);
+        } catch (error) {
+            page.previous.push(previousCursor);
+            page.cursor = currentCursor;
+            page.page += 1;
+            showMessage(error.message, "error");
+        }
+    }
+
+    async function loadEventsPage(options) {
+        return loadCollectionPage("events", options);
+    }
+
+    async function loadProcessesPage(options) {
+        return loadCollectionPage("processes", options);
+    }
+
+    async function loadAlertsPage(options) {
+        return loadCollectionPage("alerts", options);
+    }
+
+    async function loadIncidentsPage(options) {
+        return loadCollectionPage("incidents", options);
     }
 
     function renderReports(
@@ -2904,19 +3715,32 @@ function formatTimestamp(value) {
             });
     }
 
-    async function loadReportsPage() {
-        const data =
-            await request(
-                `${API.reports}?limit=200`
-            );
-
-        renderReports(data);
+    async function loadReportsPage(options) {
+        return loadCollectionPage("reports", options);
     }
 
     async function generateReport(
         incidentId,
         format
     ) {
+        if (state.access === "public") {
+            try {
+                const response = await fetch(`${API.reports}/${incidentId}/${format}`, {cache: "no-store"});
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                const url = URL.createObjectURL(await response.blob());
+                const link = document.createElement("a");
+                link.href = url;
+                link.download = `incident_${incidentId}_redacted.${format}`;
+                document.body.appendChild(link);
+                link.click();
+                link.remove();
+                URL.revokeObjectURL(url);
+                showMessage(`${String(format).toUpperCase()} redacted report downloaded.`, "success");
+            } catch (error) {
+                showMessage(`Report download failed: ${error.message}`, "error");
+            }
+            return;
+        }
         // One generation at a time. Without this, an impatient double-click
         // fired two POSTs and the second one's response could overwrite the
         // first one's message.
@@ -3429,35 +4253,42 @@ function formatTimestamp(value) {
     }
 
     async function refreshCurrentPage(
-        page
+        page,
+        options = {}
     ) {
+        if (state.access === "public" && page === "settings") {
+            await loadSettings();
+            document.querySelectorAll("#settingsForm input, #settingsForm select, #saveSettingsBtn").forEach(field => field.disabled = true);
+            document.getElementById("settingsStatus").textContent = "Public read-only configuration · administrative changes are disabled.";
+            return;
+        }
         if (page === "dashboard") {
             await loadDashboard();
             return;
         }
 
         if (page === "events") {
-            await loadEventsPage();
+            await loadEventsPage(options);
             return;
         }
 
         if (page === "processes") {
-            await loadProcessesPage();
+            await loadProcessesPage(options);
             return;
         }
 
         if (page === "alerts") {
-            await loadAlertsPage();
+            await loadAlertsPage(options);
             return;
         }
 
         if (page === "incidents") {
-            await loadIncidentsPage();
+            await loadIncidentsPage(options);
             return;
         }
 
         if (page === "reports") {
-            await loadReportsPage();
+            await loadReportsPage(options);
             return;
         }
 
@@ -3497,10 +4328,12 @@ function formatTimestamp(value) {
         document.getElementById(
             "pageSubtitle"
         ).textContent = title[1];
+        document.getElementById("pageSubtitle").textContent =
+            `${state.access === "public" ? "Public summary · Private environment details restricted" : state.status?.config?.environment || "Environment unavailable"} · ${title[1]}`;
 
         try {
             showMessage("");
-            await refreshCurrentPage(page);
+            await refreshCurrentPage(page, {reset: true});
         } catch (error) {
             console.error(error);
             showMessage(error.message);
@@ -3526,6 +4359,76 @@ function formatTimestamp(value) {
                     hour12: false
                 }
             );
+    }
+
+    function renderPublicPage(page) {
+        const data = state.publicSummary;
+        if (!data) return;
+        const restricted = "Restricted · authenticated SSH tunnel required";
+        const groupRows = (groups, cells) => Object.entries(groups || {}).map(([label, count]) =>
+            `<tr><td><span class="severity ${levelClass(label)}">${escapeHtml(label)}</span><span class="event-meta">${escapeHtml(count)} recorded</span></td>${Array.from({length: cells - 1}, () => `<td>${restricted}</td>`).join("")}</tr>`).join("");
+        if (page === "dashboard") {
+            renderScore(data.score ? {...data.score, reason: "Recorded detection · assessment details restricted"} : {});
+            if (!data.score) {
+                document.getElementById("score").textContent = "Unavailable";
+                document.getElementById("level").textContent = "No recorded score";
+            }
+            renderCharts({telemetry: data.telemetry});
+            const activity = data.activity || [];
+            const maximum = Math.max(1, ...activity.map(item => item.count));
+            drawChart(document.getElementById("activityChart"), activity.map(item => item.count), 0, maximum, {
+                yLabel: "Events / observed second", xLabel: "Recent persisted activity (bounded sample)",
+                yTicks: [{value: 0, label: "0"}, {value: maximum, label: String(maximum)}],
+                xTicks: activity.length ? [{position: 0, label: compactTime(activity[0].time), align: "left"}, {position: 1, label: compactTime(activity[activity.length - 1].time), align: "right"}] : []
+            });
+            document.getElementById("historyState").textContent = "Public read-only aggregates from stored history. Private details require an authenticated SSH tunnel.";
+            document.getElementById("recentActivity").textContent = `Latest process capture: ${formatTime(data.latest_capture)} · Public chart samples contain no process identities or file paths.`;
+            document.getElementById("dashboardEvents").innerHTML = groupRows(data.groups.events, 3);
+            document.getElementById("dashboardProcesses").innerHTML = `<tr><td colspan="4" class="empty">${data.summary.process_count.toLocaleString()} stored observations · ${restricted}</td></tr>`;
+            document.getElementById("topModified").innerHTML = `<div class="file-row"><span class="file-path">Modified event count · file paths restricted</span><span class="file-count">${data.groups.events.modified ?? 0}</span></div>`;
+            renderPublicIncidents("overviewIncidents");
+            renderPublicTriage("dashboardAlerts");
+        } else if (page === "events") {
+            document.getElementById("eventsPageTable").innerHTML = groupRows(data.groups.events, 5);
+            document.getElementById("eventsPageNotice").textContent = "Public action aggregates; paths, file metadata and individual records are restricted.";
+        } else if (page === "processes") {
+            document.getElementById("processPageTable").innerHTML = `<tr><td colspan="7" class="empty">${data.summary.process_count.toLocaleString()} stored observations · ${restricted}</td></tr>`;
+        } else if (page === "alerts") {
+            renderPublicTriage("alertsPageTable");
+        } else if (page === "incidents") {
+            renderPublicIncidents("incidentObjects");
+        } else if (page === "reports") {
+            document.getElementById("reportsList").innerHTML = `<div class="report-row"><div class="report-info"><div class="report-title">${data.report_count} stored JSON/CSV report files</div><div class="report-meta">${restricted} · original report contents preserved</div></div><div class="report-actions"><button disabled title="${restricted}">JSON</button><button disabled title="${restricted}">CSV</button></div></div>`;
+        } else if (page === "settings") {
+            document.querySelectorAll("#settingsForm input, #settingsForm select, #settingsForm button").forEach(field => {
+                field.disabled = true;
+                if (field.matches("input, select")) field.value = "";
+                field.title = restricted;
+            });
+            document.getElementById("settingsStatus").textContent = "Runtime configuration and changes are restricted to authenticated SSH tunnel access.";
+        }
+        if (state.pages[page]) {
+            const key = pageCollections[page].summaryKey;
+            document.getElementById(`${page}PageInfo`).textContent = `${page === "reports" ? data.report_count : data.summary[key]} recorded · Public aggregates only · Details restricted`;
+            for (const direction of ["Newer", "Older"]) document.getElementById(`${page}${direction}Btn`).hidden = true;
+        }
+    }
+
+    function renderPublicTriage(elementId) {
+        const table = document.getElementById(elementId);
+        const header = table.closest("table")?.querySelector("thead tr");
+        if (header) header.innerHTML = "<th>Severity</th><th>Time</th><th>Detection</th><th>Score</th><th>Incident</th><th>Status</th>";
+        table.innerHTML = Object.entries(state.publicSummary.groups.alerts).map(([severity, count]) => `<tr class="alert-${levelClass(severity)}"><td><span class="severity ${levelClass(severity)}">${escapeHtml(severity)}</span></td><td>Restricted</td><td>${count} recorded alerts<span class="event-meta">Detection details require authenticated access</span></td><td>Restricted</td><td>Restricted</td><td>Restricted</td></tr>`).join("") || '<tr><td colspan="6" class="empty">No recorded alerts</td></tr>';
+    }
+
+    function renderPublicIncidents(elementId) {
+        document.getElementById(elementId).innerHTML = Object.entries(state.publicSummary.groups.incidents).map(([severity, count]) => `<article class="incident-object ${levelClass(severity)}"><header><strong>${count} recorded incident(s)</strong><span class="severity ${levelClass(severity)}">${escapeHtml(severity)}</span><strong>Score restricted</strong></header><dl><div><dt>Detected</dt><dd>Restricted</dd></div><div><dt>Affected paths</dt><dd>Restricted</dd></div><div><dt>Status</dt><dd>Restricted</dd></div><div><dt>Process observation</dt><dd>Authenticated access required</dd></div><div><dt>Response mode</dt><dd>Restricted</dd></div></dl><div class="incident-actions"><button disabled title="Authenticated SSH tunnel required">View incident</button><button onclick="navigate('reports')">View reports</button></div></article>`).join("") || '<div class="empty">No recorded incidents</div>';
+    }
+
+    function renderUnavailableCounts() {
+        for (const id of ["eventCount", "processCount", "alertCount", "incidentCount"]) {
+            document.getElementById(id).textContent = "Unavailable";
+        }
     }
 
     // `announce` is false for the 5-second background poll so the message bar
@@ -3585,6 +4488,18 @@ function formatTimestamp(value) {
             // a manual Refresh looked like it had done nothing. The message now
             // stays until the next explicit action replaces it.
 
+            if (state.access !== "private") {
+                const publicData = await request(API.publicSummary);
+                state.access = publicData.access;
+            }
+
+            // Hosted reads are redacted by the backend before reaching the UI.
+            if (!state.privateIncidentsLoaded) {
+                const records = await request(`${API.incidents}?limit=1000`);
+                for (const record of records || []) incidentRecords.set(String(record.id), record);
+                state.privateIncidentsLoaded = true;
+            }
+
             const status =
                 await request(API.status);
 
@@ -3607,6 +4522,7 @@ function formatTimestamp(value) {
             if (page === "dashboard") {
                 renderDashboard(dashboard);
             } else if (page === "settings") {
+                if (state.access === "public") await refreshCurrentPage(page);
                 // Deliberately NOT repopulating the settings form here.
                 //
                 // This branch runs every 5 seconds, and re-populating the form
@@ -3644,7 +4560,10 @@ function formatTimestamp(value) {
                 "var(--red)";
 
             statusText.textContent =
-                "RDRS API unavailable";
+                error.status === 403 ? "Access restricted · Authentication required" : "RDRS API unavailable";
+
+            renderUnavailableCounts();
+            document.getElementById("historyState").textContent = "Summary unavailable. Counts are unavailable, not zero; retry refresh.";
 
             statusDetail.textContent = "";
 
@@ -3732,6 +4651,24 @@ function formatTimestamp(value) {
             );
         });
 
+    document
+        .querySelectorAll("[data-page-link]")
+        .forEach(item => {
+            item.addEventListener(
+                "click",
+                () => navigate(item.dataset.pageLink)
+            );
+        });
+
+    for (const pageName of Object.keys(pageCollections)) {
+        document
+            .getElementById(`${pageName}OlderBtn`)
+            .addEventListener("click", () => loadOlderPage(pageName));
+        document
+            .getElementById(`${pageName}NewerBtn`)
+            .addEventListener("click", () => loadNewerPage(pageName));
+    }
+
     startBtn.addEventListener(
         "click",
         () => controlRuntime(
@@ -3808,6 +4745,94 @@ function formatTimestamp(value) {
         }
     );
 
+    // Keep existing IDs and render contracts, but move the information into
+    // a severity-first operations hierarchy without duplicating data sources.
+    const overview = document.getElementById("page-dashboard");
+    overview.classList.add("soc-overview");
+    document.getElementById("postureValues").appendChild(document.getElementById("level"));
+    document.getElementById("postureValues").appendChild(document.getElementById("score"));
+    document.getElementById("postureReason").appendChild(document.getElementById("scoreReason"));
+    for (const [id, label] of [["alertCount", "Recorded alerts"], ["incidentCount", "Recorded incidents"], ["eventCount", "File activity · recorded events"]]) {
+        const card = document.getElementById(id).closest(".card");
+        const title = card.querySelector(".card-label");
+        if (title) title.textContent = label;
+    }
+    const overviewGrids = overview.querySelectorAll(":scope > .grid");
+    if (overviewGrids[0]) {
+        const cards = overviewGrids[0].querySelectorAll(".card");
+        cards[0]?.remove();
+        cards[1]?.remove();
+    }
+    if (overviewGrids[1]) {
+        // Reason already lives in the posture panel; retain only the actual
+        // process snapshot and detection-time cards in the secondary strip.
+        overviewGrids[1].querySelectorAll(".card")[1]?.remove();
+        overviewGrids[1].style.gridTemplateColumns = "repeat(2, minmax(0, 1fr))";
+    }
+    const sections = overview.querySelectorAll(":scope > .section-grid");
+    // The first section is our incident queue. Existing chart and event
+    // sections follow and retain their own canvases / table element IDs.
+    sections[1]?.classList.add("soc-telemetry");
+    sections[2]?.classList.add("soc-events");
+    sections[3]?.classList.add("soc-events");
+    const alertsCard = document.getElementById("dashboardAlerts").closest(".card");
+    const queue = overview.querySelector(".soc-queue");
+    if (queue && alertsCard) queue.appendChild(alertsCard);
+    const filesCard = document.getElementById("topModified").closest(".card");
+    if (sections[2] && filesCard) sections[2].appendChild(filesCard);
+    const analystContext = document.getElementById("recentActivity").closest(".card");
+    if (analystContext && sections[3]) {
+        const details = document.createElement("details");
+        details.className = "analyst-provenance";
+        details.open = true;
+        details.innerHTML = '<summary class="soc-note">Data provenance &amp; response limitations</summary>';
+        details.appendChild(analystContext);
+        overview.appendChild(details);
+        details.style.gridColumn = "1 / -1";
+        details.style.order = "2";
+    }
+    if (sections[1]) {
+        const activity = document.createElement("section");
+        activity.className = "card";
+        activity.innerHTML = '<div class="section-title">Event activity</div><p class="chart-note">Recorded event counts grouped by observed second. Gaps are not interpolated.</p><canvas id="activityChart" class="chart" role="img" aria-label="Recent persisted event activity"></canvas>';
+        sections[1].prepend(activity);
+        sections[1].style.gridTemplateColumns = "repeat(3, minmax(0,1fr))";
+    }
+    for (const [id, title] of [["dashboardEvents","Event stream"],["dashboardAlerts","Detection triage"],["topModified","Affected file activity"],["dashboardProcesses","Process observations"]]) {
+        const heading = document.getElementById(id).closest(".card").querySelector(".section-title");
+        if (heading) heading.textContent = title;
+    }
+    const incidentTable = document.getElementById("incidentsPageTable").closest(".table-wrap");
+    incidentTable.hidden = true;
+    const incidentObjects = document.createElement("div");
+    incidentObjects.id = "incidentObjects";
+    incidentObjects.className = "incident-cards";
+    incidentTable.before(incidentObjects);
+    document.getElementById("closeIncidentDetail").addEventListener("click", () => document.getElementById("incidentDetail").close());
+    document.addEventListener("click", async event => {
+        const copy = event.target.closest("[data-copy-path]");
+        if (copy) {
+            if (!window.isSecureContext || !navigator.clipboard?.writeText) {
+                showMessage("Copy requires HTTPS and a browser with clipboard support. Open the secure site; hover the path to inspect its full value.", "error");
+                return;
+            }
+            try {
+                await navigator.clipboard.writeText(copy.dataset.copyPath);
+                copy.textContent = "Copied";
+            } catch {
+                copy.textContent = "Copy";
+                showMessage("Clipboard access was denied. Allow clipboard access in your browser, then try again. Hover the path to inspect its full value.", "error");
+            }
+        }
+        const investigate = event.target.closest("[data-investigate]");
+        if (investigate) await investigateIncident(investigate.dataset.investigate);
+        const report = event.target.closest("[data-detail-report]");
+        if (report) {
+            await generateReport(report.dataset.incidentId, report.dataset.detailReport);
+            if (report.dataset.detailReport === "json") await investigateIncident(report.dataset.incidentId);
+        }
+    });
+
     updateControls("STOPPED");
 
     // Must run before the first load so an edit made immediately after the
@@ -3817,6 +4842,7 @@ function formatTimestamp(value) {
     // Initial load, then the Build Guide's "fetch fresh data every few
     // seconds" auto-refresh. Both are silent so the message bar stays free
     // for the results of explicit operator actions.
+    renderUnavailableCounts();
     refreshAll();
 
     setInterval(

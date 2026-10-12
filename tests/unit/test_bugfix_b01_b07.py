@@ -2,7 +2,7 @@
 
 Every test here fails against the pre-fix code and passes after it. The
 front-end half of B-05/B-06/B-07 is verified by executing the dashboard's own
-JavaScript (see ``ptmp/dashboard_frontend_harness.mjs``, invoked from this
+JavaScript (see ``tests/dashboard_frontend_harness.mjs``, invoked from this
 module), because inspecting markup is not evidence that the UI behaves.
 
 Defects covered
@@ -44,7 +44,7 @@ from rdrs.runtime import RuntimeManager
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DASHBOARD = PROJECT_ROOT / "src" / "rdrs" / "dashboard" / "index.html"
-FRONTEND_HARNESS = PROJECT_ROOT / "ptmp" / "dashboard_frontend_harness.mjs"
+FRONTEND_HARNESS = PROJECT_ROOT / "tests" / "dashboard_frontend_harness.mjs"
 
 CONFIG_TEMPLATE = """\
 runtime:
