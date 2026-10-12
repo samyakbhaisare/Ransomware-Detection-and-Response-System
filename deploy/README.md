@@ -80,7 +80,9 @@ automation permission control; no certificate or secure-context bypass was used.
 
 The combined incident-detail pass also verified all 206 buttons. Counts are
 the real loaded collections during verification, not a claim that all historical
-process pages were traversed. Results: [copy-results.json](evidence/copy-results.json).
+process pages were traversed. Original `deploy/evidence/copy-results.json` and
+deployment screenshots remain in the local historical evidence archive; they
+are not included in this release's curated submission evidence.
 All tested public mutations and restricted GET routes still returned HTTP 403;
 public reads returned HTTP 200. The dashboard harness passed 124 checks.
 
