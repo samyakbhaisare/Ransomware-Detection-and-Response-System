@@ -474,25 +474,27 @@ right fix is a path exclusion for backup/archive locations.
 
 ## Submission evidence
 
-Two genuine application screenshots demonstrate the required safe detection
-and incident-handling workflow. They depict dated sandbox runs, not current
-production counters. Reporting evidence is provided as actual JSON/CSV files
-and matching log excerpts rather than screenshots of terminal or JSON output.
+Two fresh production captures (2026-10-15 UTC) show the actual read-only SOC
+dashboard and a genuine recorded incident investigation. Monitoring status and
+process counts are current to capture time; the displayed detection is historical.
+Reporting evidence is provided as actual JSON/CSV files and matching log excerpts.
 
 ### SOC dashboard and detection
 
-![Original RDRS SOC Overview: Critical 85/100, charts, alerts and incident queue](submission/screenshots/01-dashboard.png)
+![Production RDRS SOC Overview: monitoring status, recorded detection, charts and incident queue](submission/screenshots/current-soc-dashboard.png)
 
-Captured on 2026-10-09 in an isolated safe sandbox: 202 events, 454 process
-observations, two alerts and one incident. This is the original application
-capture, not a screenshot of the historical unhealthy local Docker instance.
+Captured from https://rdrs.samyaktech.in/ with 1,577 stored events, 2,599,224
+process observations, 10 alerts and four incidents. The latest recorded score
+is Critical 70/100 from October 10, not a newly triggered attack.
 
 ### Incident handling
 
-![Incident 1 from the safe sandbox run: Critical 85/100, 23 affected paths, simulation mode](submission/screenshots/02-incident-details.png)
+![Production incident 1 investigation: recorded threat, simulation response and redacted event timeline](submission/screenshots/current-incident-investigation.png)
 
-The original incident screenshot is from the 2026-10-08 safe run: Critical
-85/100, 23 affected paths and simulation-mode response. See the [demonstration write-up](submission/WRITEUP.md),
+Incident #1 is a genuine stored October 10 detection: Critical 70/100, 60 affected
+paths and 145 report timeline events. Identifying paths and process details are
+redacted publicly. No monitoring simulation or report generation was performed
+to capture these images. See the [historical demonstration write-up](submission/WRITEUP.md),
 [sanitized JSON report](submission/evidence/reports/incident_report.json),
 [sanitized CSV report](submission/evidence/reports/incident_report.csv), and
 [sanitized event/alert/audit excerpts](submission/evidence/logs/incident_log_excerpts.jsonl).
@@ -544,5 +546,6 @@ Git source and excludes databases, caches, credentials and raw evidence stores.
 See [submission evidence](submission/evidence/README.md),
 [design write-up](submission/WRITEUP.md) and [release results](docs/RELEASE_VERIFICATION.md).
 
-All five unique original evidence images remain preserved. Older Docker failures
+All five unique original evidence images remain preserved alongside these two
+fresh captures. Older Docker failures
 are historical local checks, not claims that the currently verified VPS is unhealthy.

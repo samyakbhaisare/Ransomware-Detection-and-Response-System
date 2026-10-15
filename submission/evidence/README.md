@@ -1,9 +1,14 @@
 # Evidence directory
 
 Reports and log excerpts here were generated from the genuine RDRS safe-sandbox
-run described in [the write-up](../WRITEUP.md). The README presents only the
-[original SOC Overview](../screenshots/01-dashboard.png) and
-[original incident screenshot](../screenshots/02-incident-details.png).
+run described in [the write-up](../WRITEUP.md). The README now presents the
+[fresh production SOC Overview](../screenshots/current-soc-dashboard.png) and
+[fresh recorded incident investigation](../screenshots/current-incident-investigation.png),
+captured on 2026-10-15 UTC from https://rdrs.samyaktech.in/ in real Chrome.
+They show current monitoring status and historical October 10 incident data;
+no new attack, response action or evidence generation occurred.
+The [original SOC Overview](../screenshots/01-dashboard.png) and
+[original incident capture](../screenshots/02-incident-details.png) remain unchanged.
 JSON/CSV and JSONL excerpts preserve recorded security facts while redacting
 machine-specific root/home paths.
 
@@ -16,4 +21,8 @@ without embedding terminal or JSON screenshots in the project README:
 
 The byte-identical duplicate `screenshots/rdrs_incident_1_dashboard.png` was
 removed from release tracking; its canonical original is `02-incident-details.png`.
-The duplicate file remains preserved locally. No image was generated or modified.
+The duplicate file remains preserved locally. Original images were not modified.
+Public quarantine-copy outcomes are not exposed by the incident API, so the
+existing verified quarantine evidence above is retained. Reports/log samples
+remain from the separately documented historical safe run. Private recovery
+backup material is not part of this submission evidence.
