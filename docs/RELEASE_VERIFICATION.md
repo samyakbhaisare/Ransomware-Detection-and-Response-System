@@ -71,3 +71,35 @@ rerun against a live database during packaging:
 [quarantine verification](../submission/screenshots/03-response-quarantine.png),
 [report screenshot](../submission/screenshots/04-generated-report.png),
 [static test screenshot](../submission/screenshots/05-test-evidence.png).
+
+## Domain release audit (2026-10-15)
+
+Public reviewer URL: <https://rdrs.samyaktech.in/>. The A record resolved to
+`192.46.208.222`. Normal hostname/certificate validation succeeded using the
+system TLS trust store (TLS 1.3); the certificate SAN is `rdrs.samyaktech.in`
+and its expiry is 2027-01-13 07:39:18 UTC. No TLS bypass was used.
+
+- Current scoped backend/redaction checks: **34 passed**, one dependency
+  deprecation warning, 5.19 seconds. Command:
+  `python -m pytest tests/unit/test_public_redaction.py tests/unit/test_api_endpoints_task7.py -q`.
+- Current original frontend harness: **124 passed, 0 failed**. Error messages
+  printed by its negative-test cases are expected; no production mutations occur.
+- Domain homepage, `/health`, `/dashboard-data`, `/public-summary`, `/status`,
+  events/processes/alerts/incidents and reports reads: **HTTP 200**.
+- `/health`: `RUNNING`, `healthy: true`, all seven subsystem flags true.
+- Existing JSON/CSV downloads for four incidents: **eight HTTP 200 responses**;
+  JSON timelines contained 145, 170, 130 and 134 stored events respectively.
+  Checked response samples contained no raw machine paths.
+- Restricted GET routes (scan, settings, API documentation, monitoring controls)
+  and OPTIONS administrative requests: **HTTP 403**. Empty POST requests lacking
+  required scan/report-generation parameters were also rejected with **403**.
+  No monitoring-control POST, simulation or production data mutation was performed.
+- `14e3d787ea7b1ee25f3fdbc95b77230508a9596d` was confirmed in current history.
+  The pre-update 104-entry ZIP matched the tracked release. The ZIP is refreshed
+  for this documentation update; the old checksum is not a checksum of the new ZIP.
+
+This audit changes public-facing documentation URLs only. Application source,
+tests, original evidence, Docker configuration and the running VPS are preserved.
+Earlier full-suite/coverage and Chrome results remain dated historical evidence,
+not newly repeated claims. Original private details still require authorized
+loopback/SSH access. The repository remains private; GitHub reviewers need access.

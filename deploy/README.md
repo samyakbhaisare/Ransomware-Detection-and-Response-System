@@ -1,6 +1,15 @@
 # VPS deployment
 
-Verified public read-only dashboard: **https://192.46.208.222/**
+Verified public read-only dashboard: **https://rdrs.samyaktech.in/**
+
+The domain A record resolves to VPS `192.46.208.222`; SSH and infrastructure
+references continue to use that address. `https://192.46.208.222/` is the legacy
+endpoint. Domain TLS validation passed on 2026-10-15; the Let's Encrypt domain
+certificate expires 2027-01-13 at 07:39:18 UTC. Production Nginx/DNS/certificate
+configuration was updated separately before this documentation-only release.
+The checked-in `nginx.conf` remains the preserved IP deployment template, not
+an exact snapshot of the separately updated production domain configuration.
+No service, DNS, certificate or production configuration was changed by this audit.
 
 HTTP redirects to HTTPS. A trusted Let's Encrypt short-lived IP certificate
 is installed; `rdrs-tls-renew.timer` checks renewal twice daily and reloads

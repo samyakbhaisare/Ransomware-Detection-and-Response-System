@@ -55,3 +55,8 @@ seven-page SOC layout, timelines, pagination and existing report downloads.
 Administrative operations remain restricted to private loopback/SSH access.
 See [current release verification](../docs/RELEASE_VERIFICATION.md). No original
 screenshots, reports or log excerpts were regenerated for this release.
+
+**Public reviewer/demo URL:** <https://rdrs.samyaktech.in/>.
+This is the existing redacted read-only service; the 2026-10-15 domain audit
+verified HTTPS, permitted reads, existing report downloads and restrictions.
+Original screenshots and the historical safe-demo results above are unchanged.

@@ -501,7 +501,12 @@ separately configured disposable runtime and real data it generated.
 
 ## Deployment status
 
-**Public read-only dashboard:** https://192.46.208.222/
+**Public read-only dashboard:** https://rdrs.samyaktech.in/
+
+The professional domain uses a validated Let's Encrypt certificate and points
+to the existing VPS at `192.46.208.222`. The IP URL remains the legacy endpoint.
+See the [2026-10-15 domain release checks](docs/RELEASE_VERIFICATION.md#domain-release-audit-2026-10-15)
+for current HTTPS, permitted-read and access-restriction results.
 
 The Akamai VPS deployment was initially verified on 2026-10-10 with fresh
 persistent storage. Original historical records were subsequently imported and
