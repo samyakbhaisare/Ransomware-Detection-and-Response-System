@@ -47,6 +47,7 @@ SUBMISSION.md
 src/main.py
 src/__init__.py
 deploy/evidence/
+submission/evidence/screenshots/rdrs_incident_1_dashboard.png
 
 # Editor / OS
 .vscode/

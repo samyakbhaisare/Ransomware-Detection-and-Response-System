@@ -474,30 +474,32 @@ right fix is a path exclusion for backup/archive locations.
 
 ## Submission evidence
 
-The retained `submission/screenshots/01-dashboard.png` was captured on
-2026-10-09 from a separate temporary
-configuration, database, and sandbox under ignored `ptmp/`. Its real summary
-was 202 events, 454 cumulative process snapshots, 2 alerts, and 1 incident.
-It does **not** show the unhealthy Docker instance or its database.
+Two genuine application screenshots demonstrate the required safe detection
+and incident-handling workflow. They depict dated sandbox runs, not current
+production counters. Reporting evidence is provided as actual JSON/CSV files
+and matching log excerpts rather than screenshots of terminal or JSON output.
+
+### SOC dashboard and detection
+
+![Original RDRS SOC Overview: Critical 85/100, charts, alerts and incident queue](submission/screenshots/01-dashboard.png)
+
+Captured on 2026-10-09 in an isolated safe sandbox: 202 events, 454 process
+observations, two alerts and one incident. This is the original application
+capture, not a screenshot of the historical unhealthy local Docker instance.
+
+### Incident handling
 
 ![Incident 1 from the safe sandbox run: Critical 85/100, 23 affected paths, simulation mode](submission/screenshots/02-incident-details.png)
 
-This genuine dashboard incident card is from the earlier 2026-10-08 safe
-sandbox run and is separate from the isolated 2026-10-09 Overview capture. It
-does not represent the current Docker health state. See the [demonstration write-up](submission/WRITEUP.md),
+The original incident screenshot is from the 2026-10-08 safe run: Critical
+85/100, 23 affected paths and simulation-mode response. See the [demonstration write-up](submission/WRITEUP.md),
 [sanitized JSON report](submission/evidence/reports/incident_report.json),
 [sanitized CSV report](submission/evidence/reports/incident_report.csv), and
 [sanitized event/alert/audit excerpts](submission/evidence/logs/incident_log_excerpts.jsonl).
 
-![Read-only SHA-256 verification of ten quarantine copies against sandbox originals](submission/screenshots/03-response-quarantine.png)
-
-![Generated sanitized RDRS incident JSON report](submission/screenshots/04-generated-report.png)
-
-![Actual static Docker configuration test output: 49 passed](submission/screenshots/05-test-evidence.png)
-
-The current Docker API still returns HTTP 500 for `/dashboard-data`; no screenshot
-of that unhealthy runtime was used. The Overview image above comes only from the
-separately configured disposable runtime and real data it generated.
+Original supporting quarantine, reporting and test evidence remains preserved
+in the [evidence index](submission/evidence/README.md), separate from the two
+application screenshots presented here.
 
 ## Deployment status
 
@@ -542,8 +544,5 @@ Git source and excludes databases, caches, credentials and raw evidence stores.
 See [submission evidence](submission/evidence/README.md),
 [design write-up](submission/WRITEUP.md) and [release results](docs/RELEASE_VERIFICATION.md).
 
-![Original isolated SOC Overview](submission/screenshots/01-dashboard.png)
-
-All five original screenshots are preserved. They depict dated safe runs,
-not today's changing live counters. Older Docker failures are historical local
-checks, not claims that the currently verified VPS is unhealthy.
+All five unique original evidence images remain preserved. Older Docker failures
+are historical local checks, not claims that the currently verified VPS is unhealthy.
