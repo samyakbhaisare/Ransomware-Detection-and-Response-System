@@ -443,40 +443,40 @@ Priorities for future work, not features claimed by this release:
 4. Process-history retention and richer alert lifecycle management.
 5. Broader false-positive and cross-platform validation.
 
-## Application and verification evidence
+## Application GUI screenshots
 
-All five images below were newly captured on **2026-10-16 UTC**. The production
-views are genuine read-only captures; stored incident timestamps are historical,
-not a claim that a new attack was triggered. The two local verification images
-show actual command output, not new application features or mock dashboard data.
+These four genuine screenshots were captured directly from the running
+read-only application on **2026-10-16 UTC**. Monitoring status and counters
+reflect capture time; recorded incident timestamps are historical. No saved
+images, terminal output or generated verification pages were used as sources.
 
 ### 01 — SOC Dashboard
 
-![New production SOC dashboard capture showing monitoring, stored threat scoring, charts and incident queue](submission/screenshots/refresh-01-soc-dashboard.png)
+![Running RDRS SOC dashboard with monitoring status, KPIs, charts and recorded threats](submission/screenshots/gui-01-live-soc-dashboard.png)
 
-Production was RUNNING at capture, with 1,577 events, 2,615,078 process
-observations, ten alerts and four incidents. The displayed score is the stored
-October 10 Critical 70/100 detection.
+The actual SOC Overview shows monitoring status, event/alert/incident KPIs and
+CPU/entropy charts. Its Critical 70/100 score is a recorded October 10 detection,
+not evidence of a newly triggered attack.
 
 ### 02 — Incident Investigation
 
-![New production incident investigation capture with recorded threat, simulation response and redacted timeline](submission/screenshots/refresh-02-incident-investigation.png)
+![Actual incident 1 investigation dialog showing recorded severity, signals, affected paths and timeline](submission/screenshots/gui-02-live-incident-investigation.png)
 
 Genuine incident #1 contains 60 affected paths and a 145-event report timeline.
 Identifying paths/process details are redacted publicly; no incident or report
 was generated to obtain this screenshot.
 
-### 03 — Response / Quarantine
+### 03 — Response / Evidence
 
-![New local read-only SHA-256 verification of ten genuine saved quarantine copies](submission/screenshots/refresh-03-quarantine-verification.png)
+![Actual RDRS Response and Evidence pane displaying simulation response status](submission/screenshots/gui-03-live-response-evidence.png)
 
-A fresh read-only check of the existing safe-demo files matched all ten copies
-against the saved sandbox originals. The underlying evidence is historical;
-the verification and screenshot are new. No source file or database was changed.
+The incident dialog's Response & Evidence pane displays genuine simulation-mode
+response status. It does **not** expose quarantine copy counts, paths or integrity
+results; this screenshot is not quarantine-copy verification.
 
 ### 04 — Reports
 
-![New production Reports interface capture with real existing incident report downloads](submission/screenshots/refresh-04-reports.png)
+![Actual RDRS Reports page listing existing incident records and JSON/CSV download controls](submission/screenshots/gui-04-live-reports.png)
 
 Four genuine stored incidents expose existing JSON/CSV download controls.
 Public downloads are redacted and do not generate new evidence. Sample
@@ -484,14 +484,6 @@ Public downloads are redacted and do not generate new evidence. Sample
 [CSV](submission/evidence/reports/incident_report.csv) and
 [log excerpts](submission/evidence/logs/incident_log_excerpts.jsonl) retain the
 separately documented historical safe run.
-
-### 05 — Testing / Verification
-
-![New capture of actual isolated pytest output with 51 Docker configuration and public redaction tests passed](submission/screenshots/refresh-05-test-verification.png)
-
-Fresh execution of the existing Docker-configuration and public-redaction tests
-passed 51 checks. No production database, full-suite rerun or container restart
-was used for this evidence.
 
 ## Deployment status and reviewer access
 

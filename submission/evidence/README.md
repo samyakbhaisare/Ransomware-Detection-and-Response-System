@@ -1,22 +1,25 @@
 # Evidence directory
 
-## Current README captures — 2026-10-16 UTC
+## Current README application GUI captures — 2026-10-16 UTC
 
-All five current README images were newly captured in real Chrome during this
-update; no earlier screenshot was reused as a current view:
+These four images were captured directly from https://rdrs.samyaktech.in/ in
+real Chrome. No screenshot was recaptured from an image file or verification page:
 
-1. [SOC Dashboard](../screenshots/refresh-01-soc-dashboard.png) — production read-only status, charts and recorded October 10 score.
-2. [Incident Investigation](../screenshots/refresh-02-incident-investigation.png) — genuine stored incident #1 and redacted report timeline.
-3. [Quarantine Verification](../screenshots/refresh-03-quarantine-verification.png) — fresh execution of the existing read-only verifier, 10/10 saved copies matched to originals.
-4. [Reports](../screenshots/refresh-04-reports.png) — production existing report controls; no report generation.
-5. [Test Verification](../screenshots/refresh-05-test-verification.png) — fresh actual isolated pytest output, 51 Docker-configuration/redaction checks passed.
+1. [SOC Dashboard](../screenshots/gui-01-live-soc-dashboard.png).
+2. [Incident Investigation](../screenshots/gui-02-live-incident-investigation.png).
+3. [Response / Evidence](../screenshots/gui-03-live-response-evidence.png) — genuine response status, not quarantine-copy verification.
+4. [Reports](../screenshots/gui-04-live-reports.png).
 
-Views 3 and 5 are browser evidence views of real command output, not new
-application interfaces or fabricated runtime data. Quarantine files are from
-the historical safe run; only their verification and screenshot are fresh.
-Production monitoring, private backup and original evidence were not modified.
+The application has no dedicated Testing/System Status GUI. Genuine test results
+remain in the README's technical verification section and existing records.
+Production state, private backup and historical evidence were not changed.
 
 ## Preserved earlier evidence
+
+The earlier `refresh-*` production captures and command-output verification
+images remain preserved. The quarantine and test output images are supporting
+verification evidence, not application GUI screenshots, and are not displayed
+in the current README showcase.
 
 Reports and log excerpts here were generated from the genuine RDRS safe-sandbox
 run described in [the write-up](../WRITEUP.md). Earlier captures include the
