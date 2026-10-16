@@ -1,7 +1,7 @@
 # Evidence directory
 
 Reports and log excerpts here were generated from the genuine RDRS safe-sandbox
-run described in [the write-up](../WRITEUP.md). The README now presents the
+run described in [the write-up](../WRITEUP.md). The portfolio README presents
 [fresh production SOC Overview](../screenshots/current-soc-dashboard.png) and
 [fresh recorded incident investigation](../screenshots/current-incident-investigation.png),
 captured on 2026-10-15 UTC from https://rdrs.samyaktech.in/ in real Chrome.
@@ -12,8 +12,13 @@ The [original SOC Overview](../screenshots/01-dashboard.png) and
 JSON/CSV and JSONL excerpts preserve recorded security facts while redacting
 machine-specific root/home paths.
 
-The following genuine supporting evidence is retained for submission review,
-without embedding terminal or JSON screenshots in the project README:
+The [current Reports interface](../screenshots/current-reports.png) was captured
+in real Chrome on 2026-10-16 UTC. It lists four genuine stored incidents and
+existing JSON/CSV download controls; no production report was generated.
+
+The portfolio's quarantine and test views use authentic historical evidence
+because those operational details are not safely available as public application
+views. All supporting evidence remains preserved:
 
 - [Quarantine-copy integrity verification](../screenshots/03-response-quarantine.png).
 - [Historical generated-report evidence](../screenshots/04-generated-report.png).
